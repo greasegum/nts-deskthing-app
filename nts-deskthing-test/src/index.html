@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NTS Radio | DeskThing</title>
+  <style>
+    /* NTS Radio Design System */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    
+    :root {
+      --nts-black: #000000;
+      --nts-white: #ffffff;
+      --nts-gray: #666666;
+      --nts-light-gray: #999999;
+      --nts-red: #ff0000;
+      --nts-blue: #0066cc;
+      --nts-yellow: #ffcc00;
+      --nts-green: #00cc00;
+    }
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background-color: var(--nts-black);
+      color: var(--nts-white);
+      line-height: 1.4;
+      overflow-x: hidden;
+    }
+    
+    /* Header */
+    .header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      background: var(--nts-black);
+      border-bottom: 1px solid #333;
+      z-index: 1000;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    
+    .header__logo {
+      font-size: 24px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: var(--nts-white);
+      text-decoration: none;
+    }
+    
+    .header__tagline {
+      font-size: 12px;
+      color: var(--nts-light-gray);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-top: 4px;
+    }
+    
+    .header__controls {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    
+    .metadata-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--nts-light-gray);
+    }
+    
+    .status-indicator {
+      font-size: 8px;
+      color: var(--nts-red);
+      animation: pulse 2s infinite;
+    }
+    
+    .status-indicator.loading {
+      color: var(--nts-yellow);
+      animation: spin 1s linear infinite;
+    }
+    
+    .status-indicator.error {
+      color: var(--nts-red);
+      animation: none;
+    }
+    
+    .refresh-btn {
+      background: none;
+      border: 1px solid var(--nts-gray);
+      color: var(--nts-light-gray);
+      padding: 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    
+    .refresh-btn:hover {
+      background: var(--nts-gray);
+      color: var(--nts-white);
+    }
+    
+    .refresh-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    
+    /* Main Content */
+    .main-content {
+      margin-top: 100px;
+      padding: 20px;
+      min-height: calc(100vh - 200px);
+    }
+    
+    /* Live Channels Section */
+    .live-channels {
+      margin-bottom: 40px;
+    }
+    
+    .section-title {
+      font-size: 18px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 20px;
+      color: var(--nts-white);
+    }
+    
+    .channels-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    
+    .channel-card {
+      background: #111;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 20px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      position: relative;
+    }
+    
+    .channel-card:hover {
+      background: #1a1a1a;
+      border-color: #555;
+    }
+    
+    .channel-card.active {
+      border-color: var(--nts-red);
+      background: #1a0000;
+    }
+    
+    .channel-number {
+      font-size: 32px;
+      font-weight: 700;
+      color: var(--nts-white);
+      margin-bottom: 8px;
+    }
+    
+    .channel-name {
+      font-size: 16px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 12px;
+    }
+    
+    .live-indicator {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    
+    .live-dot {
+      width: 8px;
+      height: 8px;
+      background: var(--nts-red);
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    
+    .live-text {
+      font-size: 12px;
+      color: var(--nts-red);
+      text-transform: uppercase;
+      font-weight: 500;
+    }
+    
+    .channel-status {
+      font-size: 14px;
+      color: var(--nts-light-gray);
+      margin-bottom: 16px;
+    }
+    
+    .channel-show {
+      font-size: 12px;
+      color: var(--nts-light-gray);
+      margin-bottom: 16px;
+      line-height: 1.4;
+      font-style: italic;
+    }
+    
+    .channel-time {
+      font-size: 14px;
+      color: var(--nts-light-gray);
+      margin-bottom: 8px;
+    }
+    
+    .channel-description {
+      font-size: 12px;
+      color: var(--nts-gray);
+      line-height: 1.4;
+      margin-bottom: 16px;
+    }
+    
+    .channel-controls {
+      display: flex;
+      gap: 12px;
+    }
+    
+    .control-btn {
+      background: var(--nts-white);
+      color: var(--nts-black);
+      border: none;
+      border-radius: 4px;
+      padding: 8px 16px;
+      font-size: 12px;
+      font-weight: 500;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    
+    .control-btn:hover {
+      background: #e0e0e0;
+    }
+    
+    .control-btn.play {
+      background: var(--nts-red);
+      color: var(--nts-white);
+    }
+    
+    .control-btn.play:hover {
+      background: #cc0000;
+    }
+    
+    /* Infinite Mixtapes */
+    .mixtapes-section {
+      margin-bottom: 40px;
+    }
+    
+    .mixtapes-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+    }
+    
+    .mixtape-card {
+      background: #111;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 16px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    
+    .mixtape-card:hover {
+      background: #1a1a1a;
+      border-color: #555;
+    }
+    
+    .mixtape-name {
+      font-size: 14px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+    
+    .mixtape-description {
+      font-size: 12px;
+      color: var(--nts-light-gray);
+      line-height: 1.4;
+    }
+    
+    /* Footer Player */
+    .footer-player {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: var(--nts-black);
+      border-top: 1px solid #333;
+      padding: 16px 20px;
+      z-index: 1000;
+    }
+    
+    .player-content {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+    
+    .player-info {
+      flex: 1;
+    }
+    
+    .now-playing {
+      font-size: 14px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+    
+    .show-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    
+    .show-host {
+      font-size: 12px;
+      color: var(--nts-light-gray);
+    }
+    
+    .player-controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .player-btn {
+      background: none;
+      border: none;
+      color: var(--nts-white);
+      cursor: pointer;
+      padding: 8px;
+      border-radius: 4px;
+      transition: all 0.2s ease;
+    }
+    
+    .player-btn:hover {
+      background: #333;
+    }
+    
+    .player-btn.play-pause {
+      background: var(--nts-red);
+      color: var(--nts-white);
+      padding: 12px 16px;
+      border-radius: 6px;
+      font-weight: 500;
+      text-transform: uppercase;
+    }
+    
+    .player-btn.play-pause:hover {
+      background: #cc0000;
+    }
+    
+    /* Status Messages */
+    #status-container {
+      margin: 20px 0;
+    }
+    
+    .status-message {
+      padding: 12px 16px;
+      border-radius: 6px;
+      margin-bottom: 12px;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    
+    .status-message.success {
+      background: rgba(0, 255, 0, 0.1);
+      border: 1px solid rgba(0, 255, 0, 0.3);
+      color: #00ff00;
+    }
+    
+    .status-message.error {
+      background: rgba(255, 0, 0, 0.1);
+      border: 1px solid rgba(255, 0, 0, 0.3);
+      color: #ff0000;
+    }
+    
+    /* Metadata Info */
+    .metadata-info {
+      background: #111;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 16px;
+      margin: 20px 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .last-updated,
+    .next-update {
+      font-size: 12px;
+      color: var(--nts-light-gray);
+      font-family: monospace;
+    }
+    
+    .last-updated {
+      color: var(--nts-green);
+    }
+    
+    .next-update {
+      color: var(--nts-blue);
+    }
+    
+    /* Responsive Design */
+    @media (max-width: 768px) {
+      .channels-grid {
+        grid-template-columns: 1fr;
+      }
+      
+      .mixtapes-grid {
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      }
+      
+      .player-content {
+        flex-direction: column;
+        gap: 12px;
+        text-align: center;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <header class="header">
+    <div class="header__logo">NTS</div>
+    <div class="header__tagline">Don't Assume</div>
+    <div class="header__controls">
+      <div class="metadata-status" id="metadata-status">
+        <span class="status-indicator" id="status-indicator">●</span>
+        <span class="status-text" id="status-text">Live</span>
+      </div>
+      <button class="refresh-btn" onclick="refreshMetadata()" id="refresh-btn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M17.65 6.35A7.958 7.958 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0112 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="main-content">
+    <!-- Live Channels -->
+    <section class="live-channels">
+      <h2 class="section-title">Live Now</h2>
+      <div class="channels-grid">
+        <div class="channel-card" id="nts1-card">
+          <div class="channel-number">1</div>
+          <div class="channel-name" id="nts1-name">NTS 1</div>
+          <div class="live-indicator">
+            <div class="live-dot"></div>
+            <span class="live-text">Live</span>
+          </div>
+          <div class="channel-status" id="nts1-status">Loading...</div>
+          <div class="channel-show" id="nts1-show">Live Broadcast</div>
+          <div class="channel-time" id="nts1-time">--:--</div>
+          <div class="channel-description" id="nts1-description">Loading show information...</div>
+          <div class="channel-controls">
+            <button class="control-btn play" onclick="playChannel('nts1')">Play</button>
+            <button class="control-btn" onclick="showChannelInfo('nts1')">Info</button>
+          </div>
+        </div>
+        
+        <div class="channel-card" id="nts2-card">
+          <div class="channel-number">2</div>
+          <div class="channel-name" id="nts2-name">NTS 2</div>
+          <div class="live-indicator">
+            <div class="live-dot"></div>
+            <span class="live-text">Live</span>
+          </div>
+          <div class="channel-status" id="nts2-status">Loading...</div>
+          <div class="channel-show" id="nts2-show">Live Broadcast</div>
+          <div class="channel-time" id="nts2-time">--:--</div>
+          <div class="channel-description" id="nts2-description">Loading show information...</div>
+          <div class="channel-controls">
+            <button class="control-btn play" onclick="playChannel('nts2')">Play</button>
+            <button class="control-btn" onclick="showChannelInfo('nts2')">Info</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Infinite Mixtapes Section -->
+    <section class="mixtapes-section">
+      <h2>Infinite Mixtapes</h2>
+      <div class="mixtapes-grid">
+        <div class="mixtape-card" onclick="playMixtape('slowFocus')">
+          <div class="mixtape-icon">🎧</div>
+          <h3>Slow Focus</h3>
+          <p>Ambient, experimental, drone</p>
+        </div>
+        
+        <div class="mixtape-card" onclick="playMixtape('fieldRecordings')">
+          <div class="mixtape-icon">🌿</div>
+          <h3>Field Recordings</h3>
+          <p>Natural sounds, environmental audio</p>
+        </div>
+        
+        <div class="mixtape-card" onclick="playMixtape('fourToTheFloor')">
+          <div class="mixtape-icon">🕺</div>
+          <h3>4 to the Floor</h3>
+          <p>House, techno, electronic dance</p>
+        </div>
+        
+        <div class="mixtape-card" onclick="playMixtape('poolside')">
+          <div class="mixtape-icon">🏊</div>
+          <h3>Poolside</h3>
+          <p>Balearic, boogie, sophisti-pop</p>
+        </div>
+        
+        <div class="mixtape-card" onclick="playMixtape('lowkey')">
+          <div class="mixtape-icon">😌</div>
+          <h3>Low Key</h3>
+          <p>Lo-fi hip-hop, smooth R&B</p>
+        </div>
+        
+        <div class="mixtape-card" onclick="playMixtape('houseTechno')">
+          <div class="mixtape-icon">⚡</div>
+          <h3>House & Techno</h3>
+          <p>Electronic dance music</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Status Messages -->
+    <div id="status-container"></div>
+    
+    <!-- Metadata Info -->
+    <div class="metadata-info">
+      <div class="last-updated" id="last-updated">
+        Last updated: Never
+      </div>
+      <div class="next-update" id="next-update">
+        Next update: --:--:--
+      </div>
+    </div>
+  </main>
+
+  <!-- Footer Player -->
+  <footer class="footer-player" id="footer-player" style="display: none;">
+    <div class="player-content">
+      <div class="player-info">
+        <div class="now-playing">Now Playing</div>
+        <div class="show-title" id="show-title">Channel 1</div>
+        <div class="show-host" id="show-host">Live Broadcast</div>
+      </div>
+      
+      <div class="player-controls">
+        <button class="player-btn" onclick="skipBack()">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/>
+          </svg>
+        </button>
+        
+        <button class="player-btn play-pause" id="play-pause-btn" onclick="togglePlayPause()">
+          Pause
+        </button>
+        
+        <button class="player-btn" onclick="skipForward()">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </footer>
+
+  <script type="module" src="./main.js"></script>
+</body>
+</html> 

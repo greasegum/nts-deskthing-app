@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NTS Radio Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 20px; border: 1px solid #ccc; }
+        button { padding: 10px 20px; margin: 5px; }
+        .status { margin: 10px 0; padding: 10px; background: #f0f0f0; }
+    </style>
+</head>
+<body>
+    <h1>NTS Radio App Test</h1>
+    
+    <div class="test-section">
+        <h2>Test Controls</h2>
+        <button onclick="testNTSAPI()">Test NTS API</button>
+        <button onclick="testStreamPlayback()">Test Stream Playback</button>
+        <button onclick="testChannelData()">Test Channel Data</button>
+    </div>
+    
+    <div class="test-section">
+        <h2>Console Output</h2>
+        <div id="console-output" class="status">Check browser console for detailed output...</div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Current App State</h2>
+        <div id="app-state" class="status">Loading...</div>
+    </div>
+
+    <script>
+        // Simple test functions
+        async function testNTSAPI() {
+            try {
+                const response = await fetch('https://www.nts.live/api/v2/live');
+                const data = await response.json();
+                console.log('NTS API Test Result:', data);
+                document.getElementById('console-output').textContent = 'NTS API test completed - check console';
+            } catch (error) {
+                console.error('NTS API Test Failed:', error);
+                document.getElementById('console-output').textContent = 'NTS API test failed - check console';
+            }
+        }
+        
+        function testStreamPlayback() {
+            console.log('Testing stream playback...');
+            // This will test the audio functions
+            document.getElementById('console-output').textContent = 'Stream playback test initiated - check console';
+        }
+        
+        function testChannelData() {
+            console.log('Testing channel data...');
+            // This will test the data loading functions
+            document.getElementById('console-output').textContent = 'Channel data test initiated - check console';
+        }
+        
+        // Update app state display
+        function updateAppState() {
+            if (window.appState) {
+                document.getElementById('app-state').textContent = JSON.stringify(window.appState, null, 2);
+            } else {
+                document.getElementById('app-state').textContent = 'App state not available';
+            }
+        }
+        
+        // Check for app state every second
+        setInterval(updateAppState, 1000);
+    </script>
+    
+    <!-- Load the main app -->
+    <script src="dist/index.js"></script>
+</body>
+</html> 
