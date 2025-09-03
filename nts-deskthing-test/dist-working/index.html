@@ -5,9 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NTS Radio | DeskThing</title>
   <style>
-    /* NTS Radio Design System */
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-    
+    /* NTS Radio Design System */
     :root {
       --nts-black: #000000;
       --nts-white: #ffffff;
@@ -18,13 +17,11 @@
       --nts-yellow: #ffcc00;
       --nts-green: #00cc00;
     }
-    
     * {
       margin: 0;
       padding: 0;
       box-sizing: border-box;
     }
-    
     body {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       background-color: var(--nts-black);
@@ -32,7 +29,6 @@
       line-height: 1.4;
       overflow-x: hidden;
     }
-    
     /* Header */
     .header {
       position: fixed;
@@ -47,7 +43,6 @@
       align-items: center;
       justify-content: space-between;
     }
-    
     .header__logo {
       font-size: 24px;
       font-weight: 700;
@@ -56,7 +51,6 @@
       color: var(--nts-white);
       text-decoration: none;
     }
-    
     .header__tagline {
       font-size: 12px;
       color: var(--nts-light-gray);
@@ -64,13 +58,11 @@
       letter-spacing: 1px;
       margin-top: 4px;
     }
-    
     .header__controls {
       display: flex;
       align-items: center;
       gap: 16px;
     }
-    
     .metadata-status {
       display: flex;
       align-items: center;
@@ -78,23 +70,19 @@
       font-size: 12px;
       color: var(--nts-light-gray);
     }
-    
     .status-indicator {
       font-size: 8px;
       color: var(--nts-red);
       animation: pulse 2s infinite;
     }
-    
     .status-indicator.loading {
       color: var(--nts-yellow);
       animation: spin 1s linear infinite;
     }
-    
     .status-indicator.error {
       color: var(--nts-red);
       animation: none;
     }
-    
     .refresh-btn {
       background: none;
       border: 1px solid var(--nts-gray);
@@ -104,39 +92,32 @@
       cursor: pointer;
       transition: all 0.2s ease;
     }
-    
     .refresh-btn:hover {
       background: var(--nts-gray);
       color: var(--nts-white);
     }
-    
     .refresh-btn:disabled {
       opacity: 0.5;
       cursor: not-allowed;
     }
-    
     @keyframes pulse {
       0%, 100% { opacity: 1; }
       50% { opacity: 0.5; }
     }
-    
     @keyframes spin {
       from { transform: rotate(0deg); }
       to { transform: rotate(360deg); }
     }
-    
     /* Main Content */
     .main-content {
       margin-top: 100px;
       padding: 20px;
       min-height: calc(100vh - 200px);
     }
-    
     /* Live Channels Section */
     .live-channels {
       margin-bottom: 40px;
     }
-    
     .section-title {
       font-size: 18px;
       font-weight: 600;
@@ -145,13 +126,11 @@
       margin-bottom: 20px;
       color: var(--nts-white);
     }
-    
     .channels-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 20px;
     }
-    
     .channel-card {
       background: #111;
       border: 1px solid #333;
@@ -161,24 +140,20 @@
       transition: all 0.2s ease;
       position: relative;
     }
-    
     .channel-card:hover {
       background: #1a1a1a;
       border-color: #555;
     }
-    
     .channel-card.active {
       border-color: var(--nts-red);
       background: #1a0000;
     }
-    
     .channel-number {
       font-size: 32px;
       font-weight: 700;
       color: var(--nts-white);
       margin-bottom: 8px;
     }
-    
     .channel-name {
       font-size: 16px;
       font-weight: 500;
@@ -186,14 +161,12 @@
       letter-spacing: 1px;
       margin-bottom: 12px;
     }
-    
     .live-indicator {
       display: flex;
       align-items: center;
       gap: 8px;
       margin-bottom: 16px;
     }
-    
     .live-dot {
       width: 8px;
       height: 8px;
@@ -201,19 +174,16 @@
       border-radius: 50%;
       animation: pulse 2s infinite;
     }
-    
     @keyframes pulse {
       0%, 100% { opacity: 1; }
       50% { opacity: 0.5; }
     }
-    
     .live-text {
       font-size: 12px;
       color: var(--nts-red);
       text-transform: uppercase;
       font-weight: 500;
     }
-    
     /* Show Artwork Styles */
     .show-artwork {
       width: 100%;
@@ -227,7 +197,6 @@
       overflow: hidden;
       position: relative;
     }
-    
     .artwork-placeholder {
       width: 100px;
       height: 100px;
@@ -239,14 +208,12 @@
       overflow: hidden;
       border: 2px solid #333;
     }
-    
     .placeholder-text {
       color: #666;
       font-size: 14px;
       font-weight: 500;
       text-align: center;
     }
-    
     .artwork-image {
       width: 100px;
       height: 100px;
@@ -255,11 +222,9 @@
       transition: transform 0.3s ease;
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     }
-    
     .artwork-image:hover {
       transform: scale(1.05);
     }
-    
     .artwork-loading {
       display: flex;
       flex-direction: column;
@@ -267,7 +232,6 @@
       color: #888;
       font-size: 12px;
     }
-    
     .artwork-loading::after {
       content: '';
       width: 20px;
@@ -278,7 +242,6 @@
       animation: spin 1s linear infinite;
       margin-top: 8px;
     }
-    
     .artwork-error {
       display: flex;
       flex-direction: column;
@@ -286,19 +249,16 @@
       color: #ff6b6b;
       font-size: 12px;
     }
-    
     .artwork-error::before {
       content: '⚠';
       font-size: 24px;
       margin-bottom: 4px;
     }
-    
     .channel-status {
       font-size: 14px;
       color: var(--nts-light-gray);
       margin-bottom: 16px;
     }
-    
     .channel-show {
       font-size: 12px;
       color: var(--nts-light-gray);
@@ -306,25 +266,21 @@
       line-height: 1.4;
       font-style: italic;
     }
-    
     .channel-time {
       font-size: 14px;
       color: var(--nts-light-gray);
       margin-bottom: 8px;
     }
-    
     .channel-description {
       font-size: 12px;
       color: var(--nts-gray);
       line-height: 1.4;
       margin-bottom: 16px;
     }
-    
     .channel-controls {
       display: flex;
       gap: 12px;
     }
-    
     .control-btn {
       background: var(--nts-white);
       color: var(--nts-black);
@@ -337,31 +293,25 @@
       cursor: pointer;
       transition: all 0.2s ease;
     }
-    
     .control-btn:hover {
       background: #e0e0e0;
     }
-    
     .control-btn.play {
       background: var(--nts-red);
       color: var(--nts-white);
     }
-    
     .control-btn.play:hover {
       background: #cc0000;
     }
-    
     /* Infinite Mixtapes */
     .mixtapes-section {
       margin-bottom: 40px;
     }
-    
     .mixtapes-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
       gap: 16px;
     }
-    
     .mixtape-card {
       background: #111;
       border: 1px solid #333;
@@ -370,12 +320,10 @@
       cursor: pointer;
       transition: all 0.2s ease;
     }
-    
     .mixtape-card:hover {
       background: #1a1a1a;
       border-color: #555;
     }
-    
     .mixtape-name {
       font-size: 14px;
       font-weight: 500;
@@ -383,13 +331,11 @@
       letter-spacing: 0.5px;
       margin-bottom: 8px;
     }
-    
     .mixtape-description {
       font-size: 12px;
       color: var(--nts-light-gray);
       line-height: 1.4;
     }
-    
     /* Footer Player */
     .footer-player {
       position: fixed;
@@ -401,17 +347,14 @@
       padding: 16px 20px;
       z-index: 1000;
     }
-    
     .player-content {
       display: flex;
       align-items: center;
       gap: 20px;
     }
-    
     .player-info {
       flex: 1;
     }
-    
     .now-playing {
       font-size: 14px;
       font-weight: 500;
@@ -419,24 +362,20 @@
       letter-spacing: 0.5px;
       margin-bottom: 4px;
     }
-    
     .show-title {
       font-size: 16px;
       font-weight: 600;
       margin-bottom: 4px;
     }
-    
     .show-host {
       font-size: 12px;
       color: var(--nts-light-gray);
     }
-    
     .player-controls {
       display: flex;
       align-items: center;
       gap: 12px;
     }
-    
     .player-btn {
       background: none;
       border: none;
@@ -446,11 +385,9 @@
       border-radius: 4px;
       transition: all 0.2s ease;
     }
-    
     .player-btn:hover {
       background: #333;
     }
-    
     .player-btn.play-pause {
       background: var(--nts-red);
       color: var(--nts-white);
@@ -459,16 +396,13 @@
       font-weight: 500;
       text-transform: uppercase;
     }
-    
     .player-btn.play-pause:hover {
       background: #cc0000;
     }
-    
     /* Status Messages */
     #status-container {
       margin: 20px 0;
     }
-    
     .status-message {
       padding: 12px 16px;
       border-radius: 6px;
@@ -476,19 +410,16 @@
       font-size: 14px;
       font-weight: 500;
     }
-    
     .status-message.success {
       background: rgba(0, 255, 0, 0.1);
       border: 1px solid rgba(0, 255, 0, 0.3);
       color: #00ff00;
     }
-    
     .status-message.error {
       background: rgba(255, 0, 0, 0.1);
       border: 1px solid rgba(255, 0, 0, 0.3);
       color: #ff0000;
     }
-    
     /* Metadata Info */
     .metadata-info {
       background: #111;
@@ -500,104 +431,18 @@
       justify-content: space-between;
       align-items: center;
     }
-    
     .last-updated,
     .next-update {
       font-size: 12px;
       color: var(--nts-light-gray);
       font-family: monospace;
     }
-    
     .last-updated {
       color: var(--nts-green);
     }
-    
     .next-update {
       color: var(--nts-blue);
     }
-    
-    /* DEBUG: Console Output Styles */
-    .debug-console {
-      background: #000;
-      border: 2px solid #333;
-      border-radius: 8px;
-      margin: 20px 0;
-      font-family: 'Courier New', monospace;
-      max-height: 400px;
-      overflow: hidden;
-    }
-    
-    .debug-header {
-      background: #111;
-      border-bottom: 1px solid #333;
-      padding: 12px 16px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    
-    .debug-header h3 {
-      margin: 0;
-      font-size: 14px;
-      color: #00ff00;
-      font-weight: 600;
-    }
-    
-    .debug-clear-btn,
-    .debug-copy-btn {
-      background: #333;
-      border: 1px solid #555;
-      color: #ccc;
-      padding: 6px 12px;
-      border-radius: 4px;
-      font-size: 12px;
-      cursor: pointer;
-      margin-left: 8px;
-    }
-    
-    .debug-clear-btn:hover,
-    .debug-copy-btn:hover {
-      background: #555;
-      color: #fff;
-    }
-    
-    .debug-content {
-      padding: 16px;
-      max-height: 300px;
-      overflow-y: auto;
-      background: #000;
-    }
-    
-    .debug-entry {
-      color: #ccc;
-      font-size: 12px;
-      line-height: 1.4;
-      margin-bottom: 8px;
-      word-wrap: break-word;
-      border-left: 2px solid #333;
-      padding-left: 8px;
-    }
-    
-    .debug-entry.error {
-      color: #ff6b6b;
-      border-left-color: #ff6b6b;
-    }
-    
-    .debug-entry.success {
-      color: #00ff00;
-      border-left-color: #00ff00;
-    }
-    
-    .debug-entry.warning {
-      color: #ffd93d;
-      border-left-color: #ffd93d;
-    }
-    
-    .debug-entry.info {
-      color: #4ecdc4;
-      border-left-color: #4ecdc4;
-    }
-    
     /* Responsive Design */
     @media (max-width: 768px) {
       .channels-grid {
@@ -615,6 +460,7 @@
       }
     }
   </style>
+  <script type="module" crossorigin src="/index.js"></script>
 </head>
 <body>
   <!-- Header -->
@@ -746,21 +592,6 @@
         Next update: --:--:--
       </div>
     </div>
-    
-    <!-- DEBUG: Live Console Output -->
-    <div class="debug-console" id="debug-console">
-      <div class="debug-header">
-        <h3>🔍 Live Console Output</h3>
-        <button class="debug-clear-btn" onclick="clearDebugConsole()">Clear</button>
-        <button class="debug-copy-btn" onclick="copyDebugConsole()">Copy</button>
-      </div>
-      <div class="debug-content" id="debug-content">
-        <div class="debug-entry">Console ready...</div>
-        <div class="debug-entry" id="page-load-status">Page loaded, waiting for JavaScript...</div>
-        <div class="debug-entry" id="dom-status">DOM status: Unknown</div>
-        <div class="debug-entry" id="script-status">Script status: Unknown</div>
-      </div>
-    </div>
   </main>
 
   <!-- Footer Player -->
@@ -792,6 +623,6 @@
     </div>
   </footer>
 
-  <script type="module" src="./main.js"></script>
+  
 </body>
 </html> 

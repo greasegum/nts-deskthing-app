@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NTS Audio Service Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .button:hover {
+            background: #0056b3;
+        }
+        .button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .status.success { background: #d4edda; color: #155724; }
+        .status.error { background: #f8d7da; color: #721c24; }
+        .status.info { background: #d1ecf1; color: #0c5460; }
+        .volume-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 10px 0;
+        }
+        .volume-slider {
+            width: 200px;
+        }
+        .stream-info {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .visualization {
+            width: 100%;
+            height: 100px;
+            background: #000;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎵 NTS Audio Service Test</h1>
+    
+    <div class="test-section">
+        <h2>Audio Service Status</h2>
+        <div id="audio-status" class="status info">Initializing...</div>
+        <div id="audio-info">Audio service not initialized</div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Stream Controls</h2>
+        <button class="button" onclick="testNTS1()">Play NTS 1</button>
+        <button class="button" onclick="testNTS2()">Play NTS 2</button>
+        <button class="button" onclick="testMixtape()">Play Mixtape</button>
+        <button class="button" onclick="stopStream()">Stop</button>
+        <button class="button" onclick="togglePlayPause()">Play/Pause</button>
+    </div>
+    
+    <div class="test-section">
+        <h2>Volume Control</h2>
+        <div class="volume-control">
+            <label>Volume:</label>
+            <input type="range" id="volume-slider" class="volume-slider" min="0" max="100" value="100">
+            <span id="volume-value">100%</span>
+        </div>
+        <button class="button" onclick="mute()">Mute</button>
+        <button class="button" onclick="unmute()">Unmute</button>
+    </div>
+    
+    <div class="test-section">
+        <h2>Current Stream Info</h2>
+        <div id="stream-info" class="stream-info">No stream playing</div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Audio Visualization</h2>
+        <canvas id="visualization" class="visualization"></canvas>
+    </div>
+    
+    <div class="test-section">
+        <h2>Debug Console</h2>
+        <div id="debug-console" style="background: #000; color: #0f0; padding: 10px; height: 200px; overflow-y: scroll; font-family: monospace;"></div>
+        <button class="button" onclick="clearConsole()">Clear Console</button>
+    </div>
+
+    <script type="module">
+        import NTSAudioService from './src/audio-service.js';
+        
+        let audioService = null;
+        let visualizationCanvas = null;
+        let visualizationCtx = null;
+        let animationFrame = null;
+        
+        // Initialize audio service
+        async function initAudioService() {
+            try {
+                updateStatus('Initializing audio service...', 'info');
+                
+                audioService = new NTSAudioService();
+                
+                // Wait for initialization
+                while (!audioService.state.isInitialized) {
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+                
+                // Set up event listeners
+                setupAudioEventListeners();
+                
+                updateStatus('Audio service ready!', 'success');
+                updateAudioInfo();
+                
+                // Start visualization
+                initVisualization();
+                
+            } catch (error) {
+                updateStatus('Failed to initialize audio service: ' + error.message, 'error');
+                console.error('Audio service init error:', error);
+            }
+        }
+        
+        // Set up audio event listeners
+        function setupAudioEventListeners() {
+            if (!audioService) return;
+            
+            audioService.on('playbackStarted', () => {
+                updateStatus('Playback started', 'success');
+                updateStreamInfo();
+            });
+            
+            audioService.on('playbackPaused', () => {
+                updateStatus('Playback paused', 'info');
+                updateStreamInfo();
+            });
+            
+            audioService.on('playbackStopped', () => {
+                updateStatus('Playback stopped', 'info');
+                updateStreamInfo();
+            });
+            
+            audioService.on('playbackError', (data) => {
+                updateStatus('Playback error: ' + (data.error?.message || 'Unknown error'), 'error');
+                updateStreamInfo();
+            });
+            
+            audioService.on('loadingStarted', () => {
+                updateStatus('Loading audio stream...', 'info');
+            });
+            
+            audioService.on('canPlay', () => {
+                updateStatus('Audio stream ready', 'success');
+            });
+            
+            audioService.on('waitingForData', () => {
+                updateStatus('Buffering audio...', 'info');
+            });
+        }
+        
+        // Initialize visualization
+        function initVisualization() {
+            visualizationCanvas = document.getElementById('visualization');
+            visualizationCtx = visualizationCanvas.getContext('2d');
+            
+            // Set canvas size
+            visualizationCanvas.width = visualizationCanvas.offsetWidth;
+            visualizationCanvas.height = visualizationCanvas.offsetHeight;
+            
+            // Start animation loop
+            animateVisualization();
+        }
+        
+        // Animate visualization
+        function animateVisualization() {
+            if (!audioService || !visualizationCtx) {
+                animationFrame = requestAnimationFrame(animateVisualization);
+                return;
+            }
+            
+            const data = audioService.getVisualizationData();
+            if (data && data.frequencies) {
+                drawVisualization(data.frequencies);
+            }
+            
+            animationFrame = requestAnimationFrame(animateVisualization);
+        }
+        
+        // Draw visualization
+        function drawVisualization(frequencies) {
+            const canvas = visualizationCanvas;
+            const ctx = visualizationCtx;
+            const width = canvas.width;
+            const height = canvas.height;
+            
+            // Clear canvas
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, width, height);
+            
+            // Draw frequency bars
+            const barWidth = width / frequencies.length;
+            ctx.fillStyle = '#0f0';
+            
+            frequencies.forEach((value, index) => {
+                const barHeight = (value / 255) * height;
+                const x = index * barWidth;
+                const y = height - barHeight;
+                
+                ctx.fillRect(x, y, barWidth - 1, barHeight);
+            });
+        }
+        
+        // Test functions
+        window.testNTS1 = async function() {
+            try {
+                const streamUrl = 'http://stream-relay-geo.ntslive.net/stream';
+                const metadata = {
+                    title: 'NTS 1 Live',
+                    artist: 'NTS Radio',
+                    description: 'Live broadcast from NTS Radio'
+                };
+                
+                const success = await audioService.playStream(streamUrl, 'nts1', null, metadata);
+                if (success) {
+                    updateStatus('NTS 1 stream started', 'success');
+                }
+            } catch (error) {
+                updateStatus('Failed to start NTS 1: ' + error.message, 'error');
+            }
+        };
+        
+        window.testNTS2 = async function() {
+            try {
+                const streamUrl = 'http://stream-relay-geo.ntslive.net/stream2';
+                const metadata = {
+                    title: 'NTS 2 Live',
+                    artist: 'NTS Radio',
+                    description: 'Alternative live broadcast from NTS Radio'
+                };
+                
+                const success = await audioService.playStream(streamUrl, 'nts2', null, metadata);
+                if (success) {
+                    updateStatus('NTS 2 stream started', 'success');
+                }
+            } catch (error) {
+                updateStatus('Failed to start NTS 2: ' + error.message, 'error');
+            }
+        };
+        
+        window.testMixtape = async function() {
+            try {
+                const streamUrl = 'http://stream-mixtape-geo.ntslive.net/mixtape';
+                const metadata = {
+                    title: 'Slow Focus Mixtape',
+                    artist: 'NTS Radio',
+                    description: 'Ambient, experimental, drone'
+                };
+                
+                const success = await audioService.playStream(streamUrl, null, 'slowFocus', metadata);
+                if (success) {
+                    updateStatus('Mixtape stream started', 'success');
+                }
+            } catch (error) {
+                updateStatus('Failed to start mixtape: ' + error.message, 'error');
+            }
+        };
+        
+        window.stopStream = function() {
+            if (audioService) {
+                audioService.stopStream();
+                updateStatus('Stream stopped', 'info');
+            }
+        };
+        
+        window.togglePlayPause = function() {
+            if (!audioService) return;
+            
+            if (audioService.isPlaying) {
+                audioService.pauseStream();
+            } else {
+                audioService.resumeStream();
+            }
+        };
+        
+        window.mute = function() {
+            if (audioService) {
+                audioService.setMuted(true);
+                updateStatus('Audio muted', 'info');
+            }
+        };
+        
+        window.unmute = function() {
+            if (audioService) {
+                audioService.setMuted(false);
+                updateStatus('Audio unmuted', 'info');
+            }
+        };
+        
+        // Volume control
+        document.getElementById('volume-slider').addEventListener('input', function(e) {
+            const volume = e.target.value / 100;
+            if (audioService) {
+                audioService.setVolume(volume);
+            }
+            document.getElementById('volume-value').textContent = Math.round(volume * 100) + '%';
+        });
+        
+        // Utility functions
+        function updateStatus(message, type) {
+            const statusEl = document.getElementById('audio-status');
+            statusEl.textContent = message;
+            statusEl.className = `status ${type}`;
+            
+            addToConsole(`[${type.toUpperCase()}] ${message}`);
+        }
+        
+        function updateAudioInfo() {
+            if (!audioService) return;
+            
+            const infoEl = document.getElementById('audio-info');
+            const state = audioService.state;
+            infoEl.innerHTML = `
+                <strong>Status:</strong> ${state.isInitialized ? 'Ready' : 'Not Ready'}<br>
+                <strong>Sample Rate:</strong> ${audioService.audioContext?.sampleRate || 'N/A'} Hz<br>
+                <strong>Context State:</strong> ${audioService.audioContext?.state || 'N/A'}
+            `;
+        }
+        
+        function updateStreamInfo() {
+            if (!audioService) return;
+            
+            const infoEl = document.getElementById('stream-info');
+            const streamInfo = audioService.getCurrentStreamInfo();
+            const playbackState = audioService.getPlaybackState();
+            
+            if (streamInfo.streamUrl) {
+                infoEl.innerHTML = `
+                    <strong>Stream:</strong> ${streamInfo.streamUrl}<br>
+                    <strong>Channel:</strong> ${streamInfo.currentChannel || 'N/A'}<br>
+                    <strong>Mixtape:</strong> ${streamInfo.currentMixtape || 'N/A'}<br>
+                    <strong>Playing:</strong> ${audioService.isPlaying ? 'Yes' : 'No'}<br>
+                    <strong>Volume:</strong> ${Math.round(streamInfo.volume * 100)}%<br>
+                    <strong>Current Time:</strong> ${playbackState ? Math.round(playbackState.currentTime) + 's' : 'N/A'}
+                `;
+            } else {
+                infoEl.innerHTML = 'No stream playing';
+            }
+        }
+        
+        function addToConsole(message) {
+            const consoleEl = document.getElementById('debug-console');
+            const timestamp = new Date().toLocaleTimeString();
+            consoleEl.innerHTML += `[${timestamp}] ${message}\n`;
+            consoleEl.scrollTop = consoleEl.scrollHeight;
+        }
+        
+        window.clearConsole = function() {
+            document.getElementById('debug-console').innerHTML = '';
+        };
+        
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            addToConsole('Page loaded, initializing audio service...');
+            initAudioService();
+        });
+        
+        // Clean up on page unload
+        window.addEventListener('beforeunload', function() {
+            if (animationFrame) {
+                cancelAnimationFrame(animationFrame);
+            }
+            if (audioService) {
+                audioService.destroy();
+            }
+        });
+    </script>
+</body>
+</html> 

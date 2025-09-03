@@ -1,5 +1,8 @@
 // NTS Radio DeskThing App - Main Application Logic with Enhanced Live Metadata Integration
 
+// Import audio service
+import NTSAudioService from './audio-service.js';
+
 // Global state
 let appState = {
   isInitialized: false,
@@ -10,6 +13,7 @@ let appState = {
   currentMixtape: null,
   metadataRefreshInterval: null,
   lastMetadataUpdate: null,
+  audioService: null,
   streamData: {
     nts1: { 
       status: 'Loading...', 
@@ -34,18 +38,41 @@ let appState = {
 async function initializeApp() {
   console.log('🚀 Initializing NTS Radio DeskThing App...');
   
+  // DEBUG: Set up console interception first
+  setupConsoleInterception();
+  
   try {
+    console.log('🔍 Step 1: Checking DeskThing environment...');
     // Check if we're running in DeskThing environment
     await checkDeskThingEnvironment();
+    console.log('✅ Environment check complete');
     
-    // Test basic API connectivity
-    await testAPIConnectivity();
+    console.log('🔍 Step 2: Initializing audio service...');
+    // Initialize the enhanced audio service
+    appState.audioService = new NTSAudioService();
     
+    // Set up audio service event listeners
+    setupAudioServiceListeners();
+    console.log('✅ Audio service initialized');
+    
+    console.log('🔍 Step 3: Testing API connectivity...');
+    // Test basic API connectivity (only in local development)
+    if (!appState.deskThingAvailable) {
+      await testAPIConnectivity();
+      console.log('✅ API connectivity test complete');
+    } else {
+      console.log('ℹ️ Skipping local API test on DeskThing');
+    }
+    
+    console.log('🔍 Step 4: Loading initial stream data...');
     // Load initial stream data from NTS API
     await loadStreamData();
+    console.log('✅ Initial stream data loaded');
     
+    console.log('🔍 Step 5: Setting up metadata refresh...');
     // Set up automatic metadata refresh
     setupMetadataRefresh();
+    console.log('✅ Metadata refresh configured');
     
     appState.isInitialized = true;
     showStatus('✅ NTS Radio ready!', 'success');
@@ -53,10 +80,72 @@ async function initializeApp() {
     
     console.log('✅ App initialization complete');
   } catch (error) {
-    console.error('❌ App initialization failed:', error);
+    console.error('❌ App initialization failed at step:', error);
+    console.error('❌ Error details:', error.message);
+    console.error('❌ Error stack:', error.stack);
     showStatus('❌ Initialization failed: ' + error.message, 'error');
     updateMetadataStatus('error');
+    
+    // Try to load fallback data even if initialization fails
+    console.log('🔄 Attempting to load fallback data...');
+    try {
+      await loadStreamData();
+    } catch (fallbackError) {
+      console.error('❌ Fallback data loading also failed:', fallbackError);
+    }
   }
+}
+
+// Set up audio service event listeners
+function setupAudioServiceListeners() {
+  if (!appState.audioService) return;
+  
+  // Playback events
+  appState.audioService.on('playbackStarted', () => {
+    console.log('🎵 Audio playback started via service');
+    appState.isPlaying = true;
+    updatePlayPauseButton();
+    showFooterPlayer();
+  });
+  
+  appState.audioService.on('playbackPaused', () => {
+    console.log('⏸️ Audio playback paused via service');
+    appState.isPlaying = false;
+    updatePlayPauseButton();
+  });
+  
+  appState.audioService.on('playbackStopped', () => {
+    console.log('⏹️ Audio playback stopped via service');
+    appState.isPlaying = false;
+    appState.currentStream = null;
+    updatePlayPauseButton();
+    hideFooterPlayer();
+  });
+  
+  appState.audioService.on('playbackError', (data) => {
+    console.error('❌ Audio playback error via service:', data);
+    showStatus('❌ Audio playback error: ' + (data.error?.message || 'Unknown error'), 'error');
+    appState.isPlaying = false;
+    updatePlayPauseButton();
+  });
+  
+  // Loading events
+  appState.audioService.on('loadingStarted', () => {
+    console.log('🔄 Audio loading started via service');
+    showStatus('🔄 Loading audio stream...', 'info');
+  });
+  
+  appState.audioService.on('canPlay', () => {
+    console.log('✅ Audio ready to play via service');
+    showStatus('✅ Audio stream ready', 'success');
+  });
+  
+  appState.audioService.on('waitingForData', () => {
+    console.log('⏳ Audio waiting for data via service');
+    showStatus('⏳ Buffering audio...', 'info');
+  });
+  
+  console.log('✅ Audio service event listeners configured');
 }
 
 // Set up automatic metadata refresh
@@ -126,67 +215,59 @@ async function refreshMetadata() {
   }
 }
 
-// Load stream data from NTS API with enhanced metadata
+// Load stream data via DeskThing communication (no direct HTTP requests)
 async function loadStreamData() {
   try {
-    console.log('🔄 Loading NTS stream data...');
+    console.log('🔄 Requesting NTS stream data via DeskThing...');
     updateMetadataStatus('loading');
     
-    // Use our local proxy to avoid CORS issues
-    const response = await fetch('/api/nts/live');
-    console.log('📡 NTS API response status:', response.status);
-    
-    if (response.ok) {
-      const data = await response.json();
-      console.log('📊 NTS API data received:', data);
+    if (appState.deskThingAvailable) {
+      // Use proper DeskThing communication
+      console.log('🎯 Using DeskThing communication pattern');
       
-      // Extract channel information with enhanced metadata
-      if (data.results && Array.isArray(data.results)) {
-        data.results.forEach(channel => {
-          console.log('📻 Processing channel:', channel.channel_name);
-          
-          if (channel.channel_name === '1') {
-            appState.streamData.nts1 = {
-              status: 'Live Now',
-              show: channel.now?.broadcast_title || 'Live Broadcast',
-              host: channel.now?.embeds?.details?.name || 'NTS Radio',
-              time: formatShowTime(channel.now?.start_timestamp),
-              description: channel.now?.embeds?.details?.description || 'Live broadcast from NTS Radio',
-              lastUpdated: new Date()
-            };
-            console.log('✅ NTS 1 data updated:', appState.streamData.nts1);
-          } else if (channel.channel_name === '2') {
-            appState.streamData.nts2 = {
-              status: 'Live Now',
-              show: channel.now?.broadcast_title || 'Live Broadcast',
-              host: channel.now?.embeds?.details?.name || 'NTS Radio',
-              time: formatShowTime(channel.now?.start_timestamp),
-              description: channel.now?.embeds?.details?.description || 'Live broadcast from NTS Radio',
-              lastUpdated: new Date()
-            };
-            console.log('✅ NTS 2 data updated:', appState.streamData.nts2);
-          }
-        });
-      } else {
-        console.warn('⚠️ No results array in NTS API response');
-      }
+      // Request data from backend via DeskThing
+      window.deskthing.send({
+        type: 'get-live-data',
+        payload: { refresh: true }
+      });
       
-      updateChannelDisplays();
-      appState.lastMetadataUpdate = new Date();
-      console.log('✅ Real NTS stream data loaded and displayed');
+      // Data will be received via DeskThing event listeners
+      console.log('✅ Data request sent via DeskThing');
+      
     } else {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      // Development fallback: use HTTP endpoint
+      console.log('🌐 Using development HTTP fallback');
+      
+      const response = await fetch('/api/nts/live');
+      if (response.ok) {
+        const data = await response.json();
+        console.log('📊 Development data received:', data);
+        
+        if (data.channels) {
+          // Process the data
+          appState.streamData.nts1 = data.channels.nts1 || appState.streamData.nts1;
+          appState.streamData.nts2 = data.channels.nts2 || appState.streamData.nts2;
+          
+          updateChannelDisplays();
+          appState.lastMetadataUpdate = new Date();
+          console.log('✅ Development data processed');
+        }
+      } else {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
     }
-  } catch (error) {
-    console.error('❌ Failed to load NTS stream data:', error);
     
-    // Fallback to placeholder data
+  } catch (error) {
+    console.error('❌ Failed to load stream data:', error);
+    
+    // Use fallback placeholder data
     appState.streamData.nts1 = {
       status: 'Live Now',
       show: 'The Breakfast Show',
       host: 'DJ Breakfast',
       time: '09:00',
       description: 'Morning music and conversation',
+      artwork: null,
       lastUpdated: new Date()
     };
     
@@ -196,11 +277,12 @@ async function loadStreamData() {
       host: 'DJ Night',
       time: '22:00',
       description: 'Late night electronic and ambient',
+      artwork: null,
       lastUpdated: new Date()
     };
     
     updateChannelDisplays();
-    console.log('🔄 Using fallback stream data');
+    console.log('🔄 Using fallback placeholder data');
   }
 }
 
@@ -264,6 +346,9 @@ function updateChannelDisplays() {
       console.log(`✅ Updated ${channel} description to:`, data.description);
     }
     
+    // NEW: Update artwork
+    updateChannelArtwork(channel, data.artwork);
+    
     // Update last updated indicator
     if (data.lastUpdated) {
       const card = document.getElementById(`${channel}-card`);
@@ -282,6 +367,61 @@ function updateChannelDisplays() {
   } else if (appState.currentMixtape) {
     updateFooterPlayer(null, appState.currentMixtape);
   }
+}
+
+// NEW: Function to update channel artwork
+function updateChannelArtwork(channel, artworkUrl) {
+  console.log(`🎨 updateChannelArtwork called for ${channel} with URL:`, artworkUrl);
+  
+  const artworkContainer = document.getElementById(`${channel}-artwork`);
+  if (!artworkContainer) {
+    console.warn(`⚠️ Artwork container not found for ${channel}`);
+    return;
+  }
+  
+  console.log(`✅ Found artwork container for ${channel}:`, artworkContainer);
+  
+  if (artworkUrl) {
+    console.log(`🎨 Loading artwork for ${channel}:`, artworkUrl);
+    
+    // Show loading state
+    artworkContainer.innerHTML = '<div class="artwork-loading">Loading Artwork...</div>';
+    console.log(`🔄 Set loading state for ${channel}`);
+    
+    // Create and load artwork image
+    const img = new Image();
+    img.className = 'artwork-image';
+    img.alt = 'Show Artwork';
+    
+    img.onload = () => {
+      console.log(`✅ Artwork loaded successfully for ${channel}`);
+      artworkContainer.innerHTML = '';
+      artworkContainer.appendChild(img);
+    };
+    
+    img.onerror = () => {
+      console.warn(`⚠️ Failed to load artwork for ${channel}, using placeholder`);
+      showArtworkPlaceholder(artworkContainer, channel);
+    };
+    
+    // Start loading the image
+    console.log(`🚀 Starting image load for ${channel}:`, artworkUrl);
+    img.src = artworkUrl;
+    
+  } else {
+    console.log(`ℹ️ No artwork available for ${channel}, using placeholder`);
+    showArtworkPlaceholder(artworkContainer, channel);
+  }
+}
+
+// NEW: Function to show artwork placeholder
+function showArtworkPlaceholder(container, channel) {
+  const channelNum = channel.replace('nts', '');
+  container.innerHTML = `
+    <div class="artwork-placeholder">
+      <div class="placeholder-text">NTS ${channelNum}</div>
+    </div>
+  `;
 }
 
 // Update metadata info display
@@ -337,8 +477,8 @@ function getTimeUntil(date) {
   return `${diffMins.toString().padStart(2, '0')}:${diffSecs.toString().padStart(2, '0')}`;
 }
 
-// Play a specific channel using DeskThing audio system
-function playChannel(channelId) {
+// Play a specific channel using DeskThing communication
+async function playChannel(channelId) {
   try {
     console.log(`🎵 Attempting to play channel: ${channelId}`);
     
@@ -352,28 +492,52 @@ function playChannel(channelId) {
     // Update UI
     updateChannelCards();
     
-    // Get the stream URL for this channel
-    const streamUrl = getStreamUrl(channelId);
-    console.log(`🔗 Stream URL for ${channelId}:`, streamUrl);
-    
-    if (streamUrl) {
-      if (appState.deskThingAvailable) {
-        console.log('🎧 Using DeskThing audio system');
-        // Use DeskThing audio system to route to computer speakers
-        playStreamViaDeskThing(streamUrl, channelId);
+    if (appState.deskThingAvailable) {
+      console.log('🎧 Using DeskThing communication pattern');
+      
+      // Request stream playback via DeskThing
+      window.deskthing.send({
+        type: 'play-stream',
+        payload: { 
+          channel: channelId,
+          metadata: appState.streamData[channelId]
+        }
+      });
+      
+      // Stream ready confirmation will come via DeskThing event
+      console.log('✅ Stream playback request sent via DeskThing');
+      
+    } else if (appState.audioService && appState.audioService.state.isInitialized) {
+      console.log('🎧 Using enhanced audio service (development)');
+      
+      // Get the stream URL for this channel
+      const streamUrl = getStreamUrl(channelId);
+      if (streamUrl) {
+        // Get metadata for this channel
+        const metadata = appState.streamData[channelId];
+        
+        // Play stream via audio service
+        const success = await appState.audioService.playStream(streamUrl, channelId, null, metadata);
+        
+        if (success) {
+          // Update footer player
+          updateFooterPlayer(channelId);
+          showStatus(`🎵 Now playing ${channelId.toUpperCase()}`, 'success');
+        } else {
+          throw new Error('Audio service failed to start playback');
+        }
       } else {
-        console.log('🌐 Using browser fallback audio');
-        // Fallback for browser testing
-        playStreamViaBrowser(streamUrl, channelId);
+        throw new Error('Stream URL not available');
       }
-      
-      // Update footer player
-      updateFooterPlayer(channelId);
-      
-      showStatus(`🎵 Now playing ${channelId.toUpperCase()}`, 'success');
     } else {
-      console.error(`❌ No stream URL available for ${channelId}`);
-      showStatus(`❌ Stream URL not available for ${channelId}`, 'error');
+      console.log('🌐 Using browser fallback audio (development)');
+      // Fallback for browser testing
+      const streamUrl = getStreamUrl(channelId);
+      if (streamUrl) {
+        playStreamViaBrowser(streamUrl, channelId);
+      } else {
+        throw new Error('Stream URL not available');
+      }
     }
   } catch (error) {
     console.error('❌ Failed to play channel:', error);
@@ -381,9 +545,11 @@ function playChannel(channelId) {
   }
 }
 
-// Play a specific mixtape using DeskThing audio system
-function playMixtape(mixtapeId) {
+// Play a specific mixtape using DeskThing communication
+async function playMixtape(mixtapeId) {
   try {
+    console.log(`🎵 Attempting to play mixtape: ${mixtapeId}`);
+    
     // Stop any current playback
     stopCurrentStream();
     
@@ -394,28 +560,64 @@ function playMixtape(mixtapeId) {
     // Update UI
     updateChannelCards();
     
-    // Get the mixtape stream URL
-    const streamUrl = getMixtapeUrl(mixtapeId);
-    
-    if (streamUrl) {
-      if (appState.deskThingAvailable) {
-        // Use DeskThing audio system to route to computer speakers
-        playStreamViaDeskThing(streamUrl, null, mixtapeId);
+    if (appState.deskThingAvailable) {
+      console.log('🎧 Using DeskThing communication pattern for mixtape');
+      
+      // Request mixtape playback via DeskThing
+      window.deskthing.send({
+        type: 'play-mixtape',
+        payload: { 
+          mixtape: mixtapeId,
+          metadata: {
+            title: getMixtapeName(mixtapeId),
+            artist: 'NTS Radio',
+            description: 'Infinite mixtape stream'
+          }
+        }
+      });
+      
+      // Mixtape ready confirmation will come via DeskThing event
+      console.log('✅ Mixtape playback request sent via DeskThing');
+      
+    } else if (appState.audioService && appState.audioService.state.isInitialized) {
+      console.log('🎧 Using enhanced audio service for mixtape (development)');
+      
+      // Get the mixtape stream URL
+      const streamUrl = getMixtapeUrl(mixtapeId);
+      if (streamUrl) {
+        // Create metadata for mixtape
+        const metadata = {
+          title: getMixtapeName(mixtapeId),
+          artist: 'NTS Radio',
+          description: 'Infinite mixtape stream'
+        };
+        
+        // Play stream via audio service
+        const success = await appState.audioService.playStream(streamUrl, null, mixtapeId, metadata);
+        
+        if (success) {
+          // Update footer player
+          updateFooterPlayer(null, mixtapeId);
+          showStatus(`🎵 Now playing ${getMixtapeName(mixtapeId)}`, 'success');
+        } else {
+          throw new Error('Audio service failed to start mixtape playback');
+        }
       } else {
-        // Fallback for browser testing
-        playStreamViaBrowser(streamUrl, null, mixtapeId);
+        throw new Error('Mixtape URL not available');
       }
-      
-      // Update footer player
-      updateFooterPlayer(null, mixtapeId);
-      
-      showStatus(`🎵 Now playing ${getMixtapeName(mixtapeId)}`, 'success');
     } else {
-      showStatus(`❌ Stream URL not available for ${mixtapeId}`, 'error');
+      console.log('🌐 Using browser fallback audio for mixtape (development)');
+      // Fallback for browser testing
+      const streamUrl = getMixtapeUrl(mixtapeId);
+      if (streamUrl) {
+        playStreamViaBrowser(streamUrl, null, mixtapeId);
+      } else {
+        throw new Error('Mixtape URL not available');
+      }
     }
   } catch (error) {
     console.error('❌ Failed to play mixtape:', error);
-    showStatus('❌ Failed to start playback', 'error');
+    showStatus('❌ Failed to start mixtape playback', 'error');
   }
 }
 
@@ -558,13 +760,19 @@ function getMixtapeName(mixtapeId) {
 // Stop current stream
 function stopCurrentStream() {
   if (appState.deskThingAvailable) {
-    // Send stop command to DeskThing
+    // Send stop command via DeskThing
     window.deskthing.send({
-      type: 'audio',
+      type: 'audio-control',
       payload: {
-        action: 'stop'
+        action: 'stop',
+        channel: appState.currentChannel,
+        mixtape: appState.currentMixtape
       }
     });
+    console.log('⏹️ Stop command sent via DeskThing');
+  } else if (appState.audioService && appState.audioService.state.isInitialized) {
+    // Use enhanced audio service (development)
+    appState.audioService.stopStream();
   } else if (appState.audioElement) {
     // Stop browser audio
     appState.audioElement.pause();
@@ -582,25 +790,37 @@ function togglePlayPause() {
   
   if (appState.isPlaying) {
     if (appState.deskThingAvailable) {
-      // Send pause command to DeskThing
+      // Send pause command via DeskThing
       window.deskthing.send({
-        type: 'audio',
+        type: 'audio-control',
         payload: {
-          action: 'pause'
+          action: 'pause',
+          channel: appState.currentChannel,
+          mixtape: appState.currentMixtape
         }
       });
+      console.log('⏸️ Pause command sent via DeskThing');
+    } else if (appState.audioService && appState.audioService.state.isInitialized) {
+      // Use enhanced audio service (development)
+      appState.audioService.pauseStream();
     } else if (appState.audioElement) {
       appState.audioElement.pause();
     }
   } else {
     if (appState.deskThingAvailable) {
-      // Send play command to DeskThing
+      // Send play command via DeskThing
       window.deskthing.send({
-        type: 'audio',
+        type: 'audio-control',
         payload: {
-          action: 'play'
+          action: 'play',
+          channel: appState.currentChannel,
+          mixtape: appState.currentMixtape
         }
       });
+      console.log('▶️ Play command sent via DeskThing');
+    } else if (appState.audioService && appState.audioService.state.isInitialized) {
+      // Use enhanced audio service (development)
+      appState.audioService.resumeStream();
     } else if (appState.audioElement) {
       appState.audioElement.play();
     }
@@ -652,6 +872,29 @@ function showFooterPlayer() {
   if (footerPlayer) {
     footerPlayer.style.display = 'block';
   }
+}
+
+// Hide footer player
+function hideFooterPlayer() {
+  const footerPlayer = document.getElementById('footer-player');
+  if (footerPlayer) {
+    footerPlayer.style.display = 'none';
+  }
+}
+
+// Set volume using audio service
+function setVolume(volume) {
+  if (appState.audioService && appState.audioService.state.isInitialized) {
+    appState.audioService.setVolume(volume);
+  }
+}
+
+// Get current volume from audio service
+function getCurrentVolume() {
+  if (appState.audioService && appState.audioService.state.isInitialized) {
+    return appState.audioService.getVolume();
+  }
+  return 1.0;
 }
 
 // Skip back 30 seconds
@@ -759,19 +1002,41 @@ window.togglePlayPause = togglePlayPause;
 window.skipBack = skipBack;
 window.skipForward = skipForward;
 window.refreshMetadata = refreshMetadata;
+window.setVolume = setVolume;
+window.getCurrentVolume = getCurrentVolume;
 
 // Check if we're running in DeskThing environment
 async function checkDeskThingEnvironment() {
   try {
-    if (typeof window !== 'undefined' && window.deskthing) {
+    // Multiple ways to detect DeskThing
+    const isDeskThing = (
+      (typeof window !== 'undefined' && window.deskthing) ||
+      (typeof window !== 'undefined' && window.location.hostname.includes('deskthing')) ||
+      (typeof window !== 'undefined' && window.navigator.userAgent.includes('DeskThing'))
+    );
+    
+    if (isDeskThing) {
       appState.deskThingAvailable = true;
       console.log('✅ DeskThing environment detected');
+      console.log('🌐 Will use direct NTS API calls');
       setupDeskThingListeners();
     } else {
+      appState.deskThingAvailable = false;
       console.log('ℹ️ Running in standard browser environment');
+      console.log('🌐 Will use local API proxy');
     }
+    
+    // Log environment details for debugging
+    console.log('🔍 Environment details:', {
+      userAgent: window.navigator?.userAgent || 'Unknown',
+      hostname: window.location?.hostname || 'Unknown',
+      hasDeskThing: !!window.deskthing,
+      deskThingAvailable: appState.deskThingAvailable
+    });
+    
   } catch (error) {
     console.log('ℹ️ DeskThing environment check failed:', error);
+    appState.deskThingAvailable = false;
   }
 }
 
@@ -790,6 +1055,42 @@ function setupDeskThingListeners() {
     window.deskthing.on('volume', (data) => {
       console.log('🔊 DeskThing volume change:', data);
       // DeskThing handles volume routing to computer
+    });
+    
+    // Listen for NTS live data from backend
+    window.deskthing.on('nts-live-data', (data) => {
+      console.log('📡 Received NTS live data via DeskThing:', data);
+      handleNTSLiveData(data);
+    });
+    
+    // Listen for NTS errors from backend
+    window.deskthing.on('nts-error', (data) => {
+      console.error('❌ Received NTS error via DeskThing:', data);
+      handleNTSError(data);
+    });
+    
+    // Listen for stream ready confirmations
+    window.deskthing.on('stream-ready', (data) => {
+      console.log('🎵 Stream ready confirmation via DeskThing:', data);
+      handleStreamReady(data);
+    });
+    
+    // Listen for mixtape ready confirmations
+    window.deskthing.on('mixtape-ready', (data) => {
+      console.log('🎵 Mixtape ready confirmation via DeskThing:', data);
+      handleMixtapeReady(data);
+    });
+    
+    // Listen for stream errors
+    window.deskthing.on('stream-error', (data) => {
+      console.error('❌ Stream error via DeskThing:', data);
+      handleStreamError(data);
+    });
+    
+    // Listen for audio control confirmations
+    window.deskthing.on('audio-control-confirmed', (data) => {
+      console.log('🎚️ Audio control confirmed via DeskThing:', data);
+      handleAudioControlConfirmed(data);
     });
     
     console.log('✅ DeskThing event listeners configured');
@@ -836,8 +1137,322 @@ function handleDeskThingButton(data) {
   }
 }
 
+// Handle NTS live data received via DeskThing
+function handleNTSLiveData(data) {
+  try {
+    console.log('📊 Processing NTS live data from backend...');
+    
+    if (data.payload && data.payload.channels) {
+      const channels = data.payload.channels;
+      
+      // Update NTS 1 data
+      if (channels.nts1) {
+        appState.streamData.nts1 = {
+          ...appState.streamData.nts1,
+          ...channels.nts1,
+          lastUpdated: new Date(data.payload.timestamp)
+        };
+        console.log('✅ NTS 1 data updated via DeskThing');
+      }
+      
+      // Update NTS 2 data
+      if (channels.nts2) {
+        appState.streamData.nts2 = {
+          ...appState.streamData.nts2,
+          ...channels.nts2,
+          lastUpdated: new Date(data.payload.timestamp)
+        };
+        console.log('✅ NTS 2 data updated via DeskThing');
+      }
+      
+      // Update UI and metadata status
+      updateChannelDisplays();
+      updateMetadataStatus('live');
+      appState.lastMetadataUpdate = new Date(data.payload.timestamp);
+      
+      console.log('✅ NTS live data processed and displayed');
+    } else {
+      console.warn('⚠️ Invalid NTS live data format:', data);
+    }
+  } catch (error) {
+    console.error('❌ Error processing NTS live data:', error);
+    updateMetadataStatus('error');
+  }
+}
+
+// Handle NTS errors received via DeskThing
+function handleNTSError(data) {
+  console.error('❌ NTS data error from backend:', data.payload);
+  updateMetadataStatus('error');
+  showStatus('❌ Failed to load show data: ' + (data.payload.message || 'Unknown error'), 'error');
+}
+
+// Handle stream ready confirmation from backend
+function handleStreamReady(data) {
+  try {
+    const { channel, url, metadata } = data.payload;
+    console.log(`🎵 Stream ready for ${channel}:`, { url, metadata });
+    
+    // Update current stream info
+    appState.currentStream = url;
+    appState.currentChannel = channel;
+    appState.currentMixtape = null;
+    
+    // Update UI
+    updateChannelCards();
+    updateFooterPlayer(channel);
+    
+    showStatus(`🎵 Stream ready for ${channel.toUpperCase()}`, 'success');
+    
+  } catch (error) {
+    console.error('❌ Error handling stream ready:', error);
+  }
+}
+
+// Handle mixtape ready confirmation from backend
+function handleMixtapeReady(data) {
+  try {
+    const { mixtape, url, metadata } = data.payload;
+    console.log(`🎵 Mixtape ready for ${mixtape}:`, { url, metadata });
+    
+    // Update current stream info
+    appState.currentStream = url;
+    appState.currentMixtape = mixtape;
+    appState.currentChannel = null;
+    
+    // Update UI
+    updateChannelCards();
+    updateFooterPlayer(null, mixtape);
+    
+    showStatus(`🎵 Mixtape ready: ${getMixtapeName(mixtape)}`, 'success');
+    
+  } catch (error) {
+    console.error('❌ Error handling mixtape ready:', error);
+  }
+}
+
+// Handle stream errors from backend
+function handleStreamError(data) {
+  const { channel, mixtape, message } = data.payload;
+  const source = channel || mixtape;
+  
+  console.error(`❌ Stream error for ${source}:`, message);
+  showStatus(`❌ Stream error: ${message}`, 'error');
+}
+
+// Handle audio control confirmations from backend
+function handleAudioControlConfirmed(data) {
+  const { action, channel, mixtape } = data.payload;
+  const source = channel || mixtape;
+  
+  console.log(`🎚️ Audio control confirmed: ${action} for ${source}`);
+  
+  // Update UI based on action
+  switch (action) {
+    case 'play':
+      appState.isPlaying = true;
+      updatePlayPauseButton();
+      showFooterPlayer();
+      break;
+    case 'pause':
+      appState.isPlaying = false;
+      updatePlayPauseButton();
+      break;
+    case 'stop':
+      appState.isPlaying = false;
+      appState.currentStream = null;
+      updatePlayPauseButton();
+      hideFooterPlayer();
+      break;
+  }
+}
+
 // Initialize app when DOM is ready
-document.addEventListener('DOMContentLoaded', initializeApp);
+document.addEventListener('DOMContentLoaded', function() {
+  console.log('🎯 DOM Content Loaded event fired');
+  
+  // Basic DOM status update (works even if console interception fails)
+  const domStatus = document.getElementById('dom-status');
+  if (domStatus) {
+    domStatus.textContent = 'DOM status: Content loaded';
+    domStatus.className = 'debug-entry success';
+  }
+  
+  // Try to initialize the app
+  initializeApp();
+});
+
+// Also try window.onload as backup
+window.addEventListener('load', function() {
+  console.log('🎯 Window load event fired');
+  
+  const pageLoadStatus = document.getElementById('page-load-status');
+  if (pageLoadStatus) {
+    pageLoadStatus.textContent = 'Page loaded, JavaScript should be running';
+    pageLoadStatus.className = 'debug-entry success';
+  }
+  
+  const scriptStatus = document.getElementById('script-status');
+  if (scriptStatus) {
+    scriptStatus.textContent = 'Script status: Window loaded';
+    scriptStatus.className = 'debug-entry info';
+  }
+});
+
+// DEBUG: Console interception for live debug output
+function setupConsoleInterception() {
+  console.log('🔍 Setting up console interception...');
+  
+  // Update debug status immediately
+  const scriptStatus = document.getElementById('script-status');
+  if (scriptStatus) {
+    scriptStatus.textContent = 'Script status: Console interception starting...';
+    scriptStatus.className = 'debug-entry info';
+  }
+  
+  const originalConsole = {
+    log: console.log,
+    error: console.error,
+    warn: console.warn,
+    info: console.info
+  };
+  
+  // Intercept console.log
+  console.log = function(...args) {
+    originalConsole.log.apply(console, args);
+    addDebugEntry('log', args.join(' '));
+  };
+  
+  // Intercept console.error
+  console.error = function(...args) {
+    originalConsole.error.apply(console, args);
+    addDebugEntry('error', args.join(' '));
+  };
+  
+  // Intercept console.warn
+  console.warn = function(...args) {
+    originalConsole.warn.apply(console, args);
+    addDebugEntry('warning', args.join(' '));
+  };
+  
+  // Intercept console.info
+  console.info = function(...args) {
+    originalConsole.info.apply(console, args);
+    addDebugEntry('info', args.join(' '));
+  };
+  
+  console.log('🔍 Console interception set up for live debug output');
+  
+  // Update status after setup
+  if (scriptStatus) {
+    scriptStatus.textContent = 'Script status: Console interception active';
+    scriptStatus.className = 'debug-entry success';
+  }
+}
+
+// DEBUG: Add entry to debug console
+function addDebugEntry(type, message) {
+  const debugContent = document.getElementById('debug-content');
+  if (!debugContent) return;
+  
+  const entry = document.createElement('div');
+  entry.className = `debug-entry ${type}`;
+  
+  const timestamp = new Date().toLocaleTimeString();
+  entry.textContent = `[${timestamp}] ${message}`;
+  
+  debugContent.appendChild(entry);
+  
+  // Auto-scroll to bottom
+  debugContent.scrollTop = debugContent.scrollHeight;
+  
+  // Limit entries to prevent memory issues
+  const entries = debugContent.querySelectorAll('.debug-entry');
+  if (entries.length > 100) {
+    entries[0].remove();
+  }
+}
+
+// DEBUG: Clear debug console
+function clearDebugConsole() {
+  const debugContent = document.getElementById('debug-content');
+  if (debugContent) {
+    debugContent.innerHTML = '<div class="debug-entry">Console cleared...</div>';
+  }
+}
+
+// DEBUG: Copy debug console to clipboard
+function copyDebugConsole() {
+  const debugContent = document.getElementById('debug-content');
+  if (!debugContent) return;
+  
+  const text = Array.from(debugContent.querySelectorAll('.debug-entry'))
+    .map(entry => entry.textContent)
+    .join('\n');
+  
+  navigator.clipboard.writeText(text).then(() => {
+    addDebugEntry('success', 'Console output copied to clipboard');
+  }).catch(() => {
+    addDebugEntry('error', 'Failed to copy console output');
+  });
+}
+
+// Make debug functions globally available
+window.clearDebugConsole = clearDebugConsole;
+window.copyDebugConsole = copyDebugConsole;
+
+// DEBUG: Manual debug entry for testing
+window.addDebugEntry = addDebugEntry;
+
+// DEBUG: Global error handler
+window.addEventListener('error', function(event) {
+  console.error('🚨 Global JavaScript error:', event.error);
+  
+  // Update debug status even if console interception fails
+  const scriptStatus = document.getElementById('script-status');
+  if (scriptStatus) {
+    scriptStatus.textContent = 'Script status: JavaScript error occurred';
+    scriptStatus.className = 'debug-entry error';
+  }
+  
+  // Add error to debug console
+  addDebugEntry('error', `Global error: ${event.error?.message || 'Unknown error'}`);
+});
+
+// DEBUG: Unhandled promise rejection handler
+window.addEventListener('unhandledrejection', function(event) {
+  console.error('🚨 Unhandled promise rejection:', event.reason);
+  
+  const scriptStatus = document.getElementById('script-status');
+  if (scriptStatus) {
+    scriptStatus.textContent = 'Script status: Promise rejection occurred';
+    scriptStatus.className = 'debug-entry error';
+  }
+  
+  addDebugEntry('error', `Promise rejection: ${event.reason?.message || 'Unknown rejection'}`);
+});
 
 // Export for potential module usage
-export { initializeApp, playChannel, playMixtape }; 
+export { initializeApp, playChannel, playMixtape };
+
+// DEBUG: Immediate status check (runs when script loads)
+(function() {
+  console.log('🚀 Script loaded, setting up immediate status...');
+  
+  // Try to update status immediately
+  setTimeout(function() {
+    const scriptStatus = document.getElementById('script-status');
+    if (scriptStatus) {
+      scriptStatus.textContent = 'Script status: Script loaded and running';
+      scriptStatus.className = 'debug-entry success';
+    }
+    
+    const pageLoadStatus = document.getElementById('page-load-status');
+    if (pageLoadStatus) {
+      pageLoadStatus.textContent = 'Page loaded, JavaScript is running';
+      pageLoadStatus.className = 'debug-entry success';
+    }
+    
+    console.log('✅ Immediate status check complete');
+  }, 100);
+})(); 
