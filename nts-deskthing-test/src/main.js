@@ -48,6 +48,21 @@ function getDefaultFavorites() {
   ];
 }
 
+async function fetchNtsJson(path) {
+  try {
+    const proxyResponse = await fetch(`/api${path}`);
+    if (proxyResponse.ok) return proxyResponse.json();
+  } catch (error) {
+    console.warn('Local NTS proxy unavailable:', error.message);
+  }
+
+  const directResponse = await fetch(`https://www.nts.live/api/v2${path}`);
+  if (!directResponse.ok) {
+    throw new Error(`NTS API HTTP ${directResponse.status}`);
+  }
+  return directResponse.json();
+}
+
 function loadPersistedFavorites() {
   try {
     if (typeof window === 'undefined' || !window.localStorage) {
@@ -280,12 +295,8 @@ async function loadStreamData() {
     console.log('🔄 Loading NTS stream data...');
     updateMetadataStatus('loading');
     
-    // Use our local proxy to avoid CORS issues
-    const response = await fetch('/api/nts/live');
-    console.log('📡 NTS API response status:', response.status);
-    
-    if (response.ok) {
-      const data = await response.json();
+    const data = await fetchNtsJson('/live');
+    if (data) {
       console.log('📊 NTS API data received:', data);
       
       // Extract channel information with enhanced metadata
@@ -322,8 +333,6 @@ async function loadStreamData() {
       updateChannelDisplays();
       appState.lastMetadataUpdate = new Date();
       console.log('✅ Real NTS stream data loaded and displayed');
-    } else {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
   } catch (error) {
     console.error('❌ Failed to load NTS stream data:', error);
@@ -371,12 +380,7 @@ function formatShowTime(timestamp) {
 
 async function loadRecommendedEpisodes() {
   try {
-    const response = await fetch('/api/nts/recommended');
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-
-    const data = await response.json();
+    const data = await fetchNtsJson('/recommended');
     appState.recommendedEpisodes = Array.isArray(data.results) ? data.results.slice(0, 6) : [];
     renderRecommendedEpisodes();
     console.log('✅ Recommended episodes loaded:', appState.recommendedEpisodes.length);
@@ -431,12 +435,7 @@ async function searchEpisodesByTag(tagInput) {
   }
 
   try {
-    const response = await fetch(`/api/nts/search?tag=${encodeURIComponent(tag)}`);
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-
-    const data = await response.json();
+    const data = await fetchNtsJson(`/search?tag=${encodeURIComponent(tag)}`);
     appState.tagSearchResults = Array.isArray(data.results) ? data.results : [];
     renderTagSearchResults();
   } catch (error) {
@@ -501,11 +500,7 @@ function playEpisode(episodeId) {
   appState.currentStream = episode.playableUrl;
   appState.isPlaying = true;
 
-  if (appState.deskThingAvailable) {
-    playStreamViaDeskThing(episode.playableUrl, null, null, episode.title, episode.showName || 'NTS Radio');
-  } else {
-    playStreamViaBrowser(episode.playableUrl, null, null, episode.title, episode.showName || 'NTS Radio');
-  }
+  playStreamViaBrowser(episode.playableUrl, null, null, episode.title, episode.showName || 'NTS Radio');
 
   updateChannelCards();
   updateFooterPlayer(null, null, episode);
@@ -649,15 +644,8 @@ function playChannel(channelId) {
     console.log(`🔗 Stream URL for ${channelId}:`, streamUrl);
     
     if (streamUrl) {
-      if (appState.deskThingAvailable) {
-        console.log('🎧 Using DeskThing audio system');
-        // Use DeskThing audio system to route to computer speakers
-        playStreamViaDeskThing(streamUrl, channelId);
-      } else {
-        console.log('🌐 Using browser fallback audio');
-        // Fallback for browser testing
-        playStreamViaBrowser(streamUrl, channelId);
-      }
+      console.log('🌐 Starting audio in the DeskThing web app');
+      playStreamViaBrowser(streamUrl, channelId);
       
       // Update footer player
       updateFooterPlayer(channelId);
@@ -690,13 +678,8 @@ function playMixtape(mixtapeId) {
     const streamUrl = getMixtapeUrl(mixtapeId);
     
     if (streamUrl) {
-      if (appState.deskThingAvailable) {
-        // Use DeskThing audio system to route to computer speakers
-        playStreamViaDeskThing(streamUrl, null, mixtapeId);
-      } else {
-        // Fallback for browser testing
-        playStreamViaBrowser(streamUrl, null, mixtapeId);
-      }
+      console.log('🌐 Starting audio in the DeskThing web app');
+      playStreamViaBrowser(streamUrl, null, mixtapeId);
       
       // Update footer player
       updateFooterPlayer(null, mixtapeId);
@@ -804,8 +787,8 @@ function getStreamUrl(channelId) {
   
   // These are the CONFIRMED working NTS stream URLs from Sonos community
   const streamUrls = {
-    nts1: 'http://stream-relay-geo.ntslive.net/stream',
-    nts2: 'http://stream-relay-geo.ntslive.net/stream2'
+    nts1: 'https://streams.radiomast.io/nts1',
+    nts2: 'https://streams.radiomast.io/nts2'
   };
   
   const url = streamUrls[channelId] || null;
@@ -818,13 +801,13 @@ function getStreamUrl(channelId) {
 function getMixtapeUrl(mixtapeId) {
   // These are the CONFIRMED working NTS mixtape stream URLs
   const mixtapeUrls = {
-    slowFocus: 'http://stream-mixtape-geo.ntslive.net/mixtape',
-    fieldRecordings: 'http://stream-mixtape-geo.ntslive.net/mixtape23',
-    fourToTheFloor: 'http://stream-mixtape-geo.ntslive.net/mixtape5',
+    slowFocus: 'https://stream-mixtape-geo.ntslive.net/mixtape',
+    fieldRecordings: 'https://stream-mixtape-geo.ntslive.net/mixtape23',
+    fourToTheFloor: 'https://stream-mixtape-geo.ntslive.net/mixtape5',
     // Additional confirmed mixtapes
-    poolside: 'http://stream-mixtape-geo.ntslive.net/mixtape2',
-    lowkey: 'http://stream-mixtape-geo.ntslive.net/mixtape3',
-    houseTechno: 'http://stream-mixtape-geo.ntslive.net/mixtape4'
+    poolside: 'https://stream-mixtape-geo.ntslive.net/mixtape2',
+    lowkey: 'https://stream-mixtape-geo.ntslive.net/mixtape3',
+    houseTechno: 'https://stream-mixtape-geo.ntslive.net/mixtape4'
   };
   
   return mixtapeUrls[mixtapeId] || null;
@@ -846,15 +829,7 @@ function getMixtapeName(mixtapeId) {
 
 // Stop current stream
 function stopCurrentStream() {
-  if (appState.deskThingAvailable) {
-    sendDeskThingMessage({
-      type: 'audio',
-      payload: {
-        action: 'stop'
-      }
-    });
-  } else if (appState.audioElement) {
-    // Stop browser audio
+  if (appState.audioElement) {
     appState.audioElement.pause();
     appState.audioElement.src = '';
   }
@@ -870,29 +845,11 @@ function togglePlayPause() {
   if (!appState.currentStream) return;
 
   if (appState.isPlaying) {
-    if (appState.deskThingAvailable) {
-      sendDeskThingMessage({
-        type: 'audio',
-        payload: {
-          action: 'pause'
-        }
-      });
-    } else if (appState.audioElement) {
+    if (appState.audioElement) {
       appState.audioElement.pause();
     }
   } else {
-    if (appState.deskThingAvailable) {
-      sendDeskThingMessage({
-        type: 'audio',
-        payload: {
-          action: 'play',
-          url: appState.currentStream,
-          title: appState.currentEpisode ? appState.currentEpisode.title : (appState.currentChannel ? appState.streamData[appState.currentChannel].show : getMixtapeName(appState.currentMixtape)),
-          artist: appState.currentEpisode ? appState.currentEpisode.showName : (appState.currentChannel ? appState.streamData[appState.currentChannel].host : 'NTS Radio'),
-          source: 'nts-radio'
-        }
-      });
-    } else if (appState.audioElement) {
+    if (appState.audioElement) {
       appState.audioElement.play();
     }
   }
