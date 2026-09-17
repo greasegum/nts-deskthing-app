@@ -1043,8 +1043,8 @@ async function testAPIConnectivity() {
       throw new Error(`HTTP ${response.status}`);
     }
   } catch (error) {
-    console.error('❌ API connectivity test failed:', error);
-    throw new Error('API connectivity test failed');
+    console.warn('⚠️ Local API proxy unavailable; continuing with app startup:', error.message);
+    return false;
   }
 }
 

@@ -94,6 +94,8 @@ Build a new package and upload it again:
 
 If DeskThing keeps the previous version, remove the existing NTS Radio app first, then upload the newly generated ZIP.
 
+The current package is version `v1.0.1`. This version also includes the NTS icon and allows the app to start when the optional local API proxy is unavailable.
+
 ## Local development
 
 Install dependencies once, then start both the API server and Vite frontend:

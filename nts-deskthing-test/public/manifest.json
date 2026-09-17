@@ -5,7 +5,7 @@
   "isLocalApp": false,
   "requires": [],
   "label": "NTS Radio",
-  "version": "v1.0.0",
+  "version": "v1.0.1",
   "description": "Stream NTS Radio live channels and infinite mixtapes",
   "author": "NTS Radio Team",
   "platforms": [
@@ -17,6 +17,7 @@
   "repository": "https://github.com/nts-radio/deskthing-app",
   "name": "NTS Radio Player",
   "short_name": "NTS",
+  "icon": "nts-icon-512.png",
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait",
