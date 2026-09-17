@@ -12,8 +12,10 @@
     "start": "node server/index.js"
   },
   "dependencies": {
-    "express": "^4.18.2",
-    "cors": "^2.8.5"
+    "@deskthing/server": "^0.11.6",
+    "cors": "^2.8.5",
+    "deskthing-client": "^0.10.4",
+    "express": "^4.18.2"
   },
   "devDependencies": {
     "vite": "^4.4.9",

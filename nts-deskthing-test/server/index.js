@@ -5,6 +5,32 @@ const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+let deskThing = null;
+
+async function initializeDeskThingServer() {
+  try {
+    const DeskThingModule = await import('@deskthing/server');
+    const DeskThing = DeskThingModule?.default || DeskThingModule?.DeskThing || DeskThingModule;
+    deskThing = DeskThing && typeof DeskThing.getInstance === 'function' ? DeskThing.getInstance() : null;
+
+    if (deskThing) {
+      console.log('✅ DeskThing server SDK initialized');
+      deskThing.on('audio', (socketData) => {
+        console.log('📡 DeskThing audio event received from client:', socketData?.payload || socketData);
+      });
+
+      deskThing.on('set', (socketData) => {
+        console.log('📡 DeskThing generic set event received from client:', socketData?.payload || socketData);
+      });
+    } else {
+      console.log('ℹ️ DeskThing server SDK not available in this runtime');
+    }
+  } catch (error) {
+    console.warn('⚠️ DeskThing server SDK could not be initialized:', error.message);
+  }
+}
+
+initializeDeskThingServer();
 
 // Middleware
 app.use(cors());
@@ -73,6 +99,167 @@ app.get('/api/nts/live', async (req, res) => {
     res.status(500).json({ 
       error: 'Failed to proxy NTS API request',
       message: error.message
+    });
+  }
+});
+
+app.get('/api/nts/recommended', async (req, res) => {
+  try {
+    console.log('🔄 Fetching recommended NTS episodes...');
+
+    const showsResponse = await fetch('https://www.nts.live/api/v2/shows?limit=12', {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; NTS-Radio-DeskThing/1.0)',
+        'Accept': 'application/json'
+      }
+    });
+
+    if (!showsResponse.ok) {
+      throw new Error(`shows endpoint failed: ${showsResponse.status}`);
+    }
+
+    const showsData = await showsResponse.json();
+    const shows = Array.isArray(showsData.results) ? showsData.results : [];
+
+    const results = [];
+
+    for (const show of shows.slice(0, 8)) {
+      const episodeLink = Array.isArray(show.links) ? show.links.find((link) => link.rel === 'episodes') : null;
+      if (!episodeLink || !episodeLink.href) continue;
+
+      const episodeUrl = `${episodeLink.href}?limit=1`;
+      const episodeResponse = await fetch(episodeUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; NTS-Radio-DeskThing/1.0)',
+          'Accept': 'application/json'
+        }
+      });
+
+      if (!episodeResponse.ok) continue;
+
+      const episodeData = await episodeResponse.json();
+      const episode = Array.isArray(episodeData.results) ? episodeData.results[0] : null;
+      if (!episode) continue;
+
+      const audioSources = Array.isArray(episode.audio_sources) ? episode.audio_sources : [];
+      const playableUrl = audioSources.find((source) => typeof source?.url === 'string' && source.url.length > 0)?.url ||
+        (typeof episode.mixcloud === 'string' ? episode.mixcloud : null);
+
+      const tags = [...(show.genres || []), ...(show.moods || []), ...(episode.genres || []), ...(episode.moods || [])]
+        .filter(Boolean)
+        .map((tag) => String(tag).trim())
+        .filter((tag, index, arr) => tag && arr.indexOf(tag) === index);
+
+      results.push({
+        id: `${show.name || 'show'}-${episode.name || episode.title || 'episode'}`,
+        title: episode.name || 'Untitled episode',
+        description: episode.description || 'Recent NTS episode',
+        showName: show.name || 'NTS show',
+        publishedAt: episode.updated || null,
+        playableUrl,
+        tags,
+        source: 'nts-api'
+      });
+    }
+
+    res.json({
+      results,
+      source: 'nts-api',
+      generatedAt: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('❌ Recommended NTS episodes proxy error:', error);
+    res.status(500).json({
+      error: 'Failed to fetch recommended NTS episodes',
+      message: error.message,
+      results: []
+    });
+  }
+});
+
+app.get('/api/nts/search', async (req, res) => {
+  try {
+    const tag = String(req.query.tag || '').trim().toLowerCase();
+    if (!tag) {
+      return res.json({ results: [] });
+    }
+
+    const showsResponse = await fetch('https://www.nts.live/api/v2/shows?limit=50', {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; NTS-Radio-DeskThing/1.0)',
+        'Accept': 'application/json'
+      }
+    });
+
+    if (!showsResponse.ok) {
+      throw new Error(`shows endpoint failed: ${showsResponse.status}`);
+    }
+
+    const showsData = await showsResponse.json();
+    const shows = Array.isArray(showsData.results) ? showsData.results : [];
+
+    const matchedShows = shows.filter((show) => {
+      const tagValues = [...(show.genres || []), ...(show.moods || []), ...(show.name ? [show.name] : [])];
+      return tagValues.some((value) => String(value).toLowerCase().includes(tag));
+    });
+
+    const results = [];
+
+    for (const show of matchedShows.slice(0, 12)) {
+      const episodeLink = Array.isArray(show.links) ? show.links.find((link) => link.rel === 'episodes') : null;
+      if (!episodeLink || !episodeLink.href) continue;
+
+      const episodeUrl = `${episodeLink.href}?limit=3`;
+      const episodeResponse = await fetch(episodeUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; NTS-Radio-DeskThing/1.0)',
+          'Accept': 'application/json'
+        }
+      });
+
+      if (!episodeResponse.ok) continue;
+
+      const episodeData = await episodeResponse.json();
+      const episodes = Array.isArray(episodeData.results) ? episodeData.results : [];
+
+      for (const episode of episodes.slice(0, 3)) {
+        const tags = [...(show.genres || []), ...(show.moods || []), ...(episode.genres || []), ...(episode.moods || [])]
+          .filter(Boolean)
+          .map((item) => String(item).trim())
+          .filter((item, index, arr) => item && arr.indexOf(item) === index);
+
+        const loweredTags = tags.map((item) => item.toLowerCase());
+        if (!loweredTags.some((item) => item.includes(tag))) continue;
+
+        const audioSources = Array.isArray(episode.audio_sources) ? episode.audio_sources : [];
+        const playableUrl = audioSources.find((source) => typeof source?.url === 'string' && source.url.length > 0)?.url ||
+          (typeof episode.mixcloud === 'string' ? episode.mixcloud : null);
+
+        results.push({
+          id: `${show.name || 'show'}-${episode.name || episode.title || 'episode'}`,
+          title: episode.name || 'Untitled episode',
+          description: episode.description || 'NTS episode',
+          showName: show.name || 'NTS show',
+          publishedAt: episode.updated || null,
+          playableUrl,
+          tags,
+          source: 'nts-api'
+        });
+      }
+    }
+
+    res.json({
+      tag,
+      results: results.slice(0, 12),
+      source: 'nts-api',
+      generatedAt: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('❌ NTS tag search proxy error:', error);
+    res.status(500).json({
+      error: 'Failed to search NTS episodes by tag',
+      message: error.message,
+      results: []
     });
   }
 });

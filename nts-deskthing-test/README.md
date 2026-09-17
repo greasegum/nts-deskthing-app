@@ -42,188 +42,110 @@ Car Thing → DeskThing Server → NTS Radio App → Computer Audio System
 
 ## 🔧 How It Works
 
-### **Audio Flow**
-1. **User presses button** on Car Thing
-2. **DeskThing detects** button press
-3. **App sends audio command** to DeskThing server
-4. **DeskThing routes audio** to connected computer
-5. **Computer speakers play** NTS Radio stream
+# NTS Radio for DeskThing
 
-### **Data Flow**
-1. **App loads** and initializes
-2. **Fetches live data** from NTS Radio API (via proxy)
-3. **Updates UI** with current show information
-4. **User selects** channel or mixtape
-5. **App sends stream URL** to DeskThing audio system
+NTS Radio app for DeskThing. It provides NTS 1, NTS 2, themed infinite mixtapes, show metadata, favorites, and playback controls for a connected Car Thing or other DeskThing client.
 
-### **Stream URLs**
-The app uses **confirmed working** NTS Radio stream endpoints:
+## Install on DeskThing
 
-#### **Live Channels**
-- **NTS 1**: `http://stream-relay-geo.ntslive.net/stream`
-- **NTS 2**: `http://stream-relay-geo.ntslive.net/stream2`
+### Requirements
 
-#### **Infinite Mixtapes**
-- **Slow Focus**: `http://stream-mixtape-geo.ntslive.net/mixtape`
-- **Field Recordings**: `http://stream-mixtape-geo.ntslive.net/mixtape23`
-- **4 to the Floor**: `http://stream-mixtape-geo.ntslive.net/mixtape5`
-- **Poolside**: `http://stream-mixtape-geo.ntslive.net/mixtape2`
-- **Low Key**: `http://stream-mixtape-geo.ntslive.net/mixtape3`
-- **House & Techno**: `http://stream-mixtape-geo.ntslive.net/mixtape4`
+- DeskThing Server installed and running on the computer that will host the app
+- A DeskThing client connected to that server, such as a Car Thing
+- Node.js 16 or newer and npm, only needed to build the app
+- Internet access to load NTS metadata and audio streams
 
-## 🚀 Quick Start
+### 1. Build the app package
 
-### **Prerequisites**
-- Node.js 16+ installed
-- DeskThing Server running
-- Car Thing device connected
+From this directory (`nts-deskthing-test`), run:
 
-### **1. Clone & Install**
 ```bash
-git clone <repository-url>
-cd nts-deskthing-test
 npm install
+chmod +x deploy.sh
+./deploy.sh
 ```
 
-### **2. Development Mode**
-```bash
-# Terminal 1: Backend server
-npm run dev:server
+The script builds the frontend and creates `nts-deskthing-test.zip` in the project directory. Upload this ZIP as-is; do not upload the `dist` directory itself.
 
-# Terminal 2: Frontend build
+### 2. Upload the package to DeskThing Server
+
+1. Open **DeskThing Server**.
+2. Open the **Apps** section.
+3. Choose **Upload App** (the wording may vary slightly by DeskThing Server version).
+4. Select `nts-deskthing-test.zip`.
+5. Wait for the app to finish importing and installing.
+
+### 3. Launch the app
+
+1. Select **NTS Radio** in the DeskThing app list.
+2. Start or enable the app for the connected client.
+3. Select NTS 1, NTS 2, or a mixtape and press play.
+4. Confirm that audio is playing through the computer audio output managed by DeskThing.
+
+The Car Thing acts as the controller. Audio is played by the computer running DeskThing Server, not by the Car Thing itself.
+
+## Updating the app
+
+Build a new package and upload it again:
+
+```bash
+./deploy.sh
+```
+
+If DeskThing keeps the previous version, remove the existing NTS Radio app first, then upload the newly generated ZIP.
+
+## Local development
+
+Install dependencies once, then start both the API server and Vite frontend:
+
+```bash
+npm install
+npm run dev
+```
+
+Open the Vite URL shown in the terminal, normally `http://localhost:5173`. The Node server runs on port `3000` and proxies `/api` requests to NTS. To run the pieces separately:
+
+```bash
+npm run dev:server
 npm run dev:client
 ```
 
-### **3. Production Build**
+To preview a production build locally:
+
 ```bash
-# Build the app
 npm run build
-
-# Deploy to DeskThing
-./deploy.sh
+npm start
 ```
 
-### **4. Install on DeskThing**
-1. Open DeskThing Server app
-2. Go to **Apps > Upload App**
-3. Select `nts-deskthing-test.zip`
-4. Install on your DeskThing client
+## Troubleshooting
 
-## 📁 Project Structure
+### The ZIP cannot be uploaded
 
+Make sure the upload is `nts-deskthing-test.zip`, created by `./deploy.sh`. Run the command from the project root and verify that the archive contains `index.html`, `index.js`, `manifest.json`, and the PNG icons at its top level.
+
+### The app is missing from the DeskThing list
+
+Restart DeskThing Server, confirm that the upload completed, and check that the connected client is online. The manifest identifies the app as **NTS Radio** with app ID `nts-radio`.
+
+### The app opens but metadata does not load
+
+The app needs internet access to reach `https://www.nts.live`. When testing in a browser, also keep the local Node server running because it provides the `/api/nts/*` proxy endpoints.
+
+### There is no audio
+
+Confirm that the computer running DeskThing Server has an available audio output, the client is connected, and the NTS stream is reachable. Try another channel or mixtape, then restart the app if playback remains stuck.
+
+## Project commands
+
+```text
+npm run dev          Start the server and Vite frontend
+npm run dev:server   Start the Node API server
+npm run dev:client   Start the Vite frontend
+npm run build        Build the DeskThing frontend
+npm run preview      Preview the Vite build
+npm start            Serve the built app with Node
+./deploy.sh          Build and create the DeskThing ZIP
 ```
-nts-deskthing-test/
-├── src/                    # Frontend source
-│   ├── index.html         # Main app interface
-│   └── main.js            # App logic & audio control
-├── server/                 # Backend server
-│   └── index.js           # Express server & API endpoints
-├── public/                 # Static assets
-│   ├── manifest.json      # DeskThing app manifest
-│   ├── nts-icon.svg       # NTS logo source
-│   └── nts-icon-*.png     # App icons (multiple sizes)
-├── dist/                   # Build output (generated)
-├── package.json            # Dependencies & scripts
-├── vite.config.js          # Build configuration
-├── deploy.sh               # Deployment script
-├── generate-icons.js       # Icon generation utility
-└── README.md               # This file
-```
-
-## 🎮 DeskThing Button Mapping
-
-### **Playback Controls**
-- **Play/Pause**: Toggle audio playback
-- **Next**: Switch to next channel/mixtape
-- **Previous**: Switch to previous channel/mixtape
-
-### **Volume Controls**
-- **Up**: Volume increase (handled by DeskThing)
-- **Down**: Volume decrease (handled by DeskThing)
-
-### **Audio Routing**
-- **Car Thing**: Remote control only (no speakers)
-- **Computer**: Audio playback destination
-- **DeskThing**: Audio routing system
-
-## 🔍 API Endpoints
-
-### **Backend Endpoints**
-- `GET /api/health` - Health check
-- `GET /api/test` - Integration test
-- `GET /api/nts/live` - NTS Radio live data (proxy)
-- `GET /api/nts/streams` - Available stream information
-- `POST /api/audio` - Audio control commands
-
-### **External APIs**
-- `https://www.nts.live/api/v2/live` - NTS Radio live show data
-- Stream URLs: Direct HTTP audio streams from NTS servers
-
-## 🛠️ Development
-
-### **Available Scripts**
-```bash
-npm run dev              # Full development mode (concurrent)
-npm run dev:server       # Backend server only
-npm run dev:client       # Frontend development server
-npm run build            # Production build
-npm run preview          # Preview production build
-npm start                # Production server
-```
-
-### **Building for DeskThing**
-```bash
-# Standard build
-npm run build
-
-# Deploy package
-./deploy.sh
-```
-
-### **Icon Generation**
-```bash
-# Generate PNG icons from SVG
-node generate-icons.js
-```
-
-## 🐛 Troubleshooting
-
-### **Common Issues**
-
-#### **1. Stream Metadata Not Loading**
-- **Check**: Browser console for API errors
-- **Verify**: Backend server is running on port 3000
-- **Test**: `curl http://localhost:3000/api/nts/live`
-
-#### **2. Audio Not Playing**
-- **Check**: Browser console for audio errors
-- **Verify**: Stream URLs are accessible
-- **Test**: Direct stream URL in browser
-
-#### **3. DeskThing Integration Issues**
-- **Check**: `window.deskthing` availability
-- **Verify**: App is installed in DeskThing Server
-- **Test**: Physical Car Thing buttons
-
-#### **4. CORS Issues**
-- **Check**: Browser network tab for blocked requests
-- **Verify**: Using local proxy endpoints (`/api/nts/live`)
-- **Test**: Backend proxy is working
-
-### **Debug Mode**
-The app includes comprehensive logging:
-
-```javascript
-// Check browser console for:
-🔄 Loading NTS stream data...
-📡 NTS API response status: 200
-📊 NTS API data received: [data]
-✅ NTS 1 data updated: [data]
-🎵 Attempting to play channel: nts1
-🔗 Stream URL found: [url]
-```
-
-### **Testing Tools**
 - **`test.html`**: Local testing page with debugging
 - **Console logging**: Detailed operation tracking
 - **Network tab**: API call monitoring

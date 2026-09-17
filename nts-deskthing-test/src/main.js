@@ -1,15 +1,25 @@
+import { DeskThing } from 'deskthing-client';
+
 // NTS Radio DeskThing App - Main Application Logic with Enhanced Live Metadata Integration
 
 // Global state
 let appState = {
   isInitialized: false,
   deskThingAvailable: false,
+  deskThingClient: null,
   currentStream: null,
   isPlaying: false,
   currentChannel: null,
   currentMixtape: null,
+  currentEpisode: null,
   metadataRefreshInterval: null,
   lastMetadataUpdate: null,
+  favoriteFeeds: [],
+  lastPlayed: null,
+  recommendedEpisodes: [],
+  tagSearchResults: [],
+  tagSearchQuery: '',
+  popularTags: ['ambient', 'jazz', 'house', 'electronic', 'club', 'experimental', 'hip-hop', 'soul', 'drone', 'dub'],
   streamData: {
     nts1: { 
       status: 'Loading...', 
@@ -30,11 +40,146 @@ let appState = {
   }
 };
 
+function getDefaultFavorites() {
+  return [
+    { id: 'nts1', type: 'channel', title: 'NTS 1', subtitle: 'Main live broadcast', category: 'Live' },
+    { id: 'nts2', type: 'channel', title: 'NTS 2', subtitle: 'Alternative live broadcast', category: 'Live' },
+    { id: 'slowFocus', type: 'mixtape', title: 'Slow Focus', subtitle: 'Ambient, experimental, drone', category: 'Mixtape' }
+  ];
+}
+
+function loadPersistedFavorites() {
+  try {
+    if (typeof window === 'undefined' || !window.localStorage) {
+      appState.favoriteFeeds = getDefaultFavorites();
+      return;
+    }
+
+    const raw = window.localStorage.getItem('nts-favorite-feeds');
+    if (!raw) {
+      appState.favoriteFeeds = getDefaultFavorites();
+      saveFavorites();
+      return;
+    }
+
+    const parsed = JSON.parse(raw);
+    appState.favoriteFeeds = Array.isArray(parsed) && parsed.length ? parsed : getDefaultFavorites();
+  } catch (error) {
+    console.warn('⚠️ Failed to load favorites:', error);
+    appState.favoriteFeeds = getDefaultFavorites();
+  }
+}
+
+function saveFavorites() {
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  window.localStorage.setItem('nts-favorite-feeds', JSON.stringify(appState.favoriteFeeds));
+}
+
+function favoriteKey(item) {
+  return `${item.type}:${item.id}`;
+}
+
+function renderFavorites() {
+  const container = document.getElementById('favorites-list');
+  if (!container) return;
+
+  if (!appState.favoriteFeeds.length) {
+    container.innerHTML = '<div class="favorite-empty">No favorites saved yet. Save a live feed or current show to keep it here.</div>';
+    return;
+  }
+
+  const html = appState.favoriteFeeds.map((item) => {
+    const isChannel = item.type === 'channel';
+    const playLabel = isChannel ? 'Play Channel' : 'Play Feed';
+    return `
+      <div class="favorite-item" data-key="${favoriteKey(item)}">
+        <div class="favorite-meta">
+          <div class="favorite-category">${item.category || (isChannel ? 'Channel' : 'Mixtape')}</div>
+          <div class="favorite-title">${item.title}</div>
+          <div class="favorite-subtitle">${item.subtitle || 'Saved from NTS'}</div>
+        </div>
+        <div class="favorite-actions">
+          <button class="control-btn play" onclick="playFavorite('${item.id}', '${item.type}')">${playLabel}</button>
+          <button class="control-btn secondary" onclick="toggleFavorite('${item.id}', '${item.type}', '${item.title || ''}', '${item.subtitle || ''}', '${item.category || ''}')">Remove</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  container.innerHTML = html;
+}
+
+function toggleFavorite(id, type, title = '', subtitle = '', category = '') {
+  const item = {
+    id,
+    type,
+    title: title || (type === 'channel' ? appState.streamData[id]?.show || getChannelName(id) : getMixtapeName(id)),
+    subtitle: subtitle || (type === 'channel' ? `${getChannelName(id)} live feed` : getMixtapeDescription(id)),
+    category: category || (type === 'channel' ? 'Live' : 'Mixtape')
+  };
+
+  const existingIndex = appState.favoriteFeeds.findIndex((entry) => favoriteKey(entry) === favoriteKey(item));
+
+  if (existingIndex >= 0) {
+    appState.favoriteFeeds.splice(existingIndex, 1);
+    showStatus(`Removed ${item.title} from favorites`, 'success');
+  } else {
+    appState.favoriteFeeds.unshift(item);
+    showStatus(`Saved ${item.title} to favorites`, 'success');
+  }
+
+  saveFavorites();
+  renderFavorites();
+}
+
+function playFavorite(id, type) {
+  if (type === 'channel') {
+    playChannel(id);
+    return;
+  }
+
+  playMixtape(id);
+}
+
+function getChannelName(channelId) {
+  return channelId === 'nts1' ? 'NTS 1' : 'NTS 2';
+}
+
+function getMixtapeDescription(mixtapeId) {
+  const descriptions = {
+    slowFocus: 'Ambient, experimental, drone',
+    fieldRecordings: 'Natural sounds, environmental audio',
+    fourToTheFloor: 'House, techno, electronic dance',
+    poolside: 'Balearic, boogie, sophisti-pop',
+    lowkey: 'Lo-fi hip-hop, smooth R&B',
+    houseTechno: 'Electronic dance music'
+  };
+
+  return descriptions[mixtapeId] || 'NTS Radio mixtape';
+}
+
+function saveCurrentShowToFavorites() {
+  if (!appState.currentChannel) {
+    showStatus('Start a live channel to save the current show', 'error');
+    return;
+  }
+
+  const channelId = appState.currentChannel;
+  const data = appState.streamData[channelId] || {};
+  const title = data.show || 'Live Broadcast';
+  const subtitle = `${data.host || getChannelName(channelId)} • ${data.time || 'Live'}`;
+
+  toggleFavorite(channelId, 'channel', title, subtitle, 'Show');
+}
+
 // Initialize the app
 async function initializeApp() {
   console.log('🚀 Initializing NTS Radio DeskThing App...');
   
   try {
+    loadPersistedFavorites();
+    renderFavorites();
+
     // Check if we're running in DeskThing environment
     await checkDeskThingEnvironment();
     
@@ -43,6 +188,9 @@ async function initializeApp() {
     
     // Load initial stream data from NTS API
     await loadStreamData();
+    await loadRecommendedEpisodes();
+    renderTagChips();
+    await searchEpisodesByTag('ambient');
     
     // Set up automatic metadata refresh
     setupMetadataRefresh();
@@ -219,6 +367,150 @@ function formatShowTime(timestamp) {
     console.error('❌ Error formatting time:', error);
     return '--:--';
   }
+}
+
+async function loadRecommendedEpisodes() {
+  try {
+    const response = await fetch('/api/nts/recommended');
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+    appState.recommendedEpisodes = Array.isArray(data.results) ? data.results.slice(0, 6) : [];
+    renderRecommendedEpisodes();
+    console.log('✅ Recommended episodes loaded:', appState.recommendedEpisodes.length);
+  } catch (error) {
+    console.error('❌ Failed to load recommended episodes:', error);
+    appState.recommendedEpisodes = [];
+    renderRecommendedEpisodes();
+  }
+}
+
+function renderRecommendedEpisodes() {
+  const container = document.getElementById('recommended-episodes');
+  if (!container) return;
+
+  if (!appState.recommendedEpisodes.length) {
+    container.innerHTML = '<div class="favorite-empty">Recommended episodes are unavailable right now. Try again in a moment.</div>';
+    return;
+  }
+
+  container.innerHTML = appState.recommendedEpisodes.map((episode) => `
+    <div class="episode-card">
+      <div class="episode-tag">${episode.showName || 'NTS'}</div>
+      <div class="episode-title">${episode.title}</div>
+      <div class="episode-meta">${episode.publishedAt ? new Date(episode.publishedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Recent episode'}</div>
+      <div class="episode-description">${episode.description}</div>
+      <div class="episode-tags">${renderTags(episode.tags || [])}</div>
+      <div class="channel-controls">
+        <button class="control-btn play" onclick="playEpisode('${episode.id}')">Play</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderTags(tags = []) {
+  if (!Array.isArray(tags) || !tags.length) return '<span class="episode-tag-chip">NTS</span>';
+  return tags.slice(0, 3).map((tag) => `<span class="episode-tag-chip">${tag}</span>`).join('');
+}
+
+async function searchEpisodesByTag(tagInput) {
+  const tag = String(tagInput || '').trim();
+  appState.tagSearchQuery = tag;
+
+  const input = document.getElementById('tag-search-input');
+  if (input) {
+    input.value = tag;
+  }
+
+  if (!tag) {
+    appState.tagSearchResults = [];
+    renderTagSearchResults();
+    return;
+  }
+
+  try {
+    const response = await fetch(`/api/nts/search?tag=${encodeURIComponent(tag)}`);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+    appState.tagSearchResults = Array.isArray(data.results) ? data.results : [];
+    renderTagSearchResults();
+  } catch (error) {
+    console.error('❌ Tag search failed:', error);
+    appState.tagSearchResults = [];
+    renderTagSearchResults();
+  }
+}
+
+function renderTagChips() {
+  const container = document.getElementById('tag-chips');
+  if (!container) return;
+
+  container.innerHTML = appState.popularTags.map((tag) => `
+    <button class="tag-chip" onclick="searchEpisodesByTag('${tag}')">${tag}</button>
+  `).join('');
+}
+
+function renderTagSearchResults() {
+  const container = document.getElementById('tag-search-results');
+  if (!container) return;
+
+  if (!appState.tagSearchQuery) {
+    container.innerHTML = '<div class="favorite-empty">Search by a tag like ambient, jazz, house, or dub.</div>';
+    return;
+  }
+
+  if (!appState.tagSearchResults.length) {
+    container.innerHTML = `<div class="favorite-empty">No episodes found for “${appState.tagSearchQuery}”. Try another tag.</div>`;
+    return;
+  }
+
+  container.innerHTML = appState.tagSearchResults.map((episode) => `
+    <div class="episode-card">
+      <div class="episode-tag">${episode.showName || 'NTS'}</div>
+      <div class="episode-title">${episode.title}</div>
+      <div class="episode-meta">${episode.publishedAt ? new Date(episode.publishedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Recent episode'}</div>
+      <div class="episode-description">${episode.description}</div>
+      <div class="episode-tags">${renderTags(episode.tags || [])}</div>
+      <div class="channel-controls">
+        <button class="control-btn play" onclick="playEpisode('${episode.id}')">Play</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function playEpisode(episodeId) {
+  const episode = appState.recommendedEpisodes.find((item) => item.id === episodeId);
+  if (!episode) {
+    showStatus('❌ Episode not found', 'error');
+    return;
+  }
+
+  if (!episode.playableUrl) {
+    showStatus('❌ No playable audio source available for this episode yet', 'error');
+    return;
+  }
+
+  appState.currentEpisode = episode;
+  appState.currentChannel = null;
+  appState.currentMixtape = null;
+  appState.currentStream = episode.playableUrl;
+  appState.isPlaying = true;
+
+  if (appState.deskThingAvailable) {
+    playStreamViaDeskThing(episode.playableUrl, null, null, episode.title, episode.showName || 'NTS Radio');
+  } else {
+    playStreamViaBrowser(episode.playableUrl, null, null, episode.title, episode.showName || 'NTS Radio');
+  }
+
+  updateChannelCards();
+  updateFooterPlayer(null, null, episode);
+  updatePlayPauseButton();
+  showStatus(`🎵 Playing ${episode.title}`, 'success');
 }
 
 // Update channel display information with enhanced metadata
@@ -420,26 +712,23 @@ function playMixtape(mixtapeId) {
 }
 
 // Play stream via DeskThing audio system (routes to computer speakers)
-function playStreamViaDeskThing(streamUrl, channelId = null, mixtapeId = null) {
+function playStreamViaDeskThing(streamUrl, channelId = null, mixtapeId = null, explicitTitle = null, explicitArtist = null) {
   try {
-    // Send audio command to DeskThing server
-    // This routes the audio through your computer's audio system
-    window.deskthing.send({
-      type: 'audio',
-      payload: {
-        action: 'play',
-        url: streamUrl,
-        title: channelId ? appState.streamData[channelId].show : getMixtapeName(mixtapeId),
-        artist: channelId ? appState.streamData[channelId].host : 'NTS Radio',
-        source: 'nts-radio'
-      }
-    });
-    
+    const payload = {
+      action: 'play',
+      url: streamUrl,
+      title: explicitTitle || (channelId ? appState.streamData[channelId].show : getMixtapeName(mixtapeId)),
+      artist: explicitArtist || (channelId ? appState.streamData[channelId].host : 'NTS Radio'),
+      source: 'nts-radio'
+    };
+
+    sendDeskThingMessage({ type: 'audio', payload });
+
     appState.isPlaying = true;
     appState.currentStream = streamUrl;
     updatePlayPauseButton();
     showFooterPlayer();
-    
+
     console.log('✅ Audio command sent to DeskThing');
   } catch (error) {
     console.error('❌ Failed to send audio command to DeskThing:', error);
@@ -448,7 +737,7 @@ function playStreamViaDeskThing(streamUrl, channelId = null, mixtapeId = null) {
 }
 
 // Fallback: Play stream via browser (for testing)
-function playStreamViaBrowser(streamUrl, channelId = null, mixtapeId = null) {
+function playStreamViaBrowser(streamUrl, channelId = null, mixtapeId = null, explicitTitle = null, explicitArtist = null) {
   try {
     console.log('🌐 Setting up browser audio fallback...');
     console.log('🔗 Stream URL:', streamUrl);
@@ -558,8 +847,7 @@ function getMixtapeName(mixtapeId) {
 // Stop current stream
 function stopCurrentStream() {
   if (appState.deskThingAvailable) {
-    // Send stop command to DeskThing
-    window.deskthing.send({
+    sendDeskThingMessage({
       type: 'audio',
       payload: {
         action: 'stop'
@@ -573,17 +861,17 @@ function stopCurrentStream() {
   
   appState.isPlaying = false;
   appState.currentStream = null;
+  appState.currentEpisode = null;
   updatePlayPauseButton();
 }
 
 // Toggle play/pause
 function togglePlayPause() {
   if (!appState.currentStream) return;
-  
+
   if (appState.isPlaying) {
     if (appState.deskThingAvailable) {
-      // Send pause command to DeskThing
-      window.deskthing.send({
+      sendDeskThingMessage({
         type: 'audio',
         payload: {
           action: 'pause'
@@ -594,11 +882,14 @@ function togglePlayPause() {
     }
   } else {
     if (appState.deskThingAvailable) {
-      // Send play command to DeskThing
-      window.deskthing.send({
+      sendDeskThingMessage({
         type: 'audio',
         payload: {
-          action: 'play'
+          action: 'play',
+          url: appState.currentStream,
+          title: appState.currentEpisode ? appState.currentEpisode.title : (appState.currentChannel ? appState.streamData[appState.currentChannel].show : getMixtapeName(appState.currentMixtape)),
+          artist: appState.currentEpisode ? appState.currentEpisode.showName : (appState.currentChannel ? appState.streamData[appState.currentChannel].host : 'NTS Radio'),
+          source: 'nts-radio'
         }
       });
     } else if (appState.audioElement) {
@@ -632,10 +923,16 @@ function updateChannelCards() {
 }
 
 // Update footer player information
-function updateFooterPlayer(channelId = null, mixtapeId = null) {
+function updateFooterPlayer(channelId = null, mixtapeId = null, episode = null) {
   const showTitle = document.getElementById('show-title');
   const showHost = document.getElementById('show-host');
   
+  if (episode) {
+    if (showTitle) showTitle.textContent = episode.title;
+    if (showHost) showHost.textContent = episode.showName || 'NTS Radio';
+    return;
+  }
+
   if (channelId) {
     const data = appState.streamData[channelId];
     if (showTitle) showTitle.textContent = data.show;
@@ -657,7 +954,7 @@ function showFooterPlayer() {
 // Skip back 30 seconds
 function skipBack() {
   if (appState.deskThingAvailable) {
-    window.deskthing.send({
+    sendDeskThingMessage({
       type: 'audio',
       payload: {
         action: 'seek',
@@ -670,7 +967,7 @@ function skipBack() {
 // Skip forward 30 seconds
 function skipForward() {
   if (appState.deskThingAvailable) {
-    window.deskthing.send({
+    sendDeskThingMessage({
       type: 'audio',
       payload: {
         action: 'seek',
@@ -754,18 +1051,61 @@ async function testAPIConnectivity() {
 // Make functions globally available for HTML onclick handlers
 window.playChannel = playChannel;
 window.playMixtape = playMixtape;
+window.playFavorite = playFavorite;
+window.playEpisode = playEpisode;
+window.searchEpisodesByTag = searchEpisodesByTag;
+window.toggleFavorite = toggleFavorite;
+window.saveCurrentShowToFavorites = saveCurrentShowToFavorites;
 window.showChannelInfo = showChannelInfo;
 window.togglePlayPause = togglePlayPause;
 window.skipBack = skipBack;
 window.skipForward = skipForward;
 window.refreshMetadata = refreshMetadata;
 
+function getDeskThingClient() {
+  if (appState.deskThingClient) {
+    return appState.deskThingClient;
+  }
+
+  const runtime = typeof window !== 'undefined' && window.DeskThing ? window.DeskThing : DeskThing;
+
+  if (runtime && typeof runtime.getInstance === 'function') {
+    appState.deskThingClient = runtime.getInstance();
+    return appState.deskThingClient;
+  }
+
+  if (typeof window !== 'undefined' && window.deskthing && typeof window.deskthing.send === 'function') {
+    appState.deskThingClient = window.deskthing;
+    return appState.deskThingClient;
+  }
+
+  return null;
+}
+
+function sendDeskThingMessage(message) {
+  const client = getDeskThingClient();
+
+  if (!client || typeof client.send !== 'function') {
+    console.warn('⚠️ DeskThing client is unavailable; falling back to browser playback');
+    return;
+  }
+
+  try {
+    client.send(message);
+  } catch (error) {
+    console.error('❌ DeskThing send failed:', error);
+    throw error;
+  }
+}
+
 // Check if we're running in DeskThing environment
 async function checkDeskThingEnvironment() {
   try {
-    if (typeof window !== 'undefined' && window.deskthing) {
+    const client = getDeskThingClient();
+
+    if (client) {
       appState.deskThingAvailable = true;
-      console.log('✅ DeskThing environment detected');
+      console.log('✅ DeskThing environment detected via SDK singleton');
       setupDeskThingListeners();
     } else {
       console.log('ℹ️ Running in standard browser environment');
@@ -778,20 +1118,28 @@ async function checkDeskThingEnvironment() {
 // Set up DeskThing event listeners
 function setupDeskThingListeners() {
   if (!appState.deskThingAvailable) return;
-  
+
   try {
-    // Listen for DeskThing button presses
-    window.deskthing.on('button', (data) => {
+    const client = getDeskThingClient();
+    if (!client) return;
+
+    client.on('button', (data) => {
       console.log('🔘 DeskThing button pressed:', data);
       handleDeskThingButton(data);
     });
-    
-    // Listen for volume changes
-    window.deskthing.on('volume', (data) => {
+
+    client.on('volume', (data) => {
       console.log('🔊 DeskThing volume change:', data);
-      // DeskThing handles volume routing to computer
     });
-    
+
+    client.on('response', (data) => {
+      console.log('📡 DeskThing response received:', data);
+    });
+
+    client.on('message', (data) => {
+      console.log('📡 DeskThing message received:', data);
+    });
+
     console.log('✅ DeskThing event listeners configured');
   } catch (error) {
     console.error('❌ Failed to set up DeskThing listeners:', error);

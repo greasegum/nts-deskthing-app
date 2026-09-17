@@ -245,6 +245,46 @@
       display: flex;
       gap: 12px;
     }
+
+    .search-shell {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 12px;
+      align-items: center;
+    }
+
+    .tag-search-input {
+      flex: 1;
+      background: #111;
+      border: 1px solid #333;
+      border-radius: 8px;
+      color: var(--nts-white);
+      padding: 12px 14px;
+      font-size: 14px;
+    }
+
+    .tag-search-input:focus {
+      outline: 1px solid var(--nts-red);
+      border-color: var(--nts-red);
+    }
+
+    .tag-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .tag-chip {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid #333;
+      border-radius: 999px;
+      padding: 6px 10px;
+      color: var(--nts-light-gray);
+      font-size: 11px;
+      cursor: pointer;
+      text-transform: lowercase;
+    }
     
     .control-btn {
       background: var(--nts-white);
@@ -270,6 +310,16 @@
     
     .control-btn.play:hover {
       background: #cc0000;
+    }
+
+    .control-btn.secondary {
+      background: transparent;
+      color: var(--nts-white);
+      border: 1px solid #555;
+    }
+
+    .control-btn.secondary:hover {
+      background: #222;
     }
     
     /* Infinite Mixtapes */
@@ -309,6 +359,123 @@
       font-size: 12px;
       color: var(--nts-light-gray);
       line-height: 1.4;
+    }
+
+    .recommended-section {
+      margin-bottom: 40px;
+    }
+
+    .recommended-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+    }
+
+    .episode-card {
+      background: #111;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .episode-tag {
+      font-size: 10px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--nts-red);
+      font-weight: 600;
+    }
+
+    .episode-title {
+      font-size: 16px;
+      font-weight: 600;
+      line-height: 1.35;
+    }
+
+    .episode-meta {
+      font-size: 12px;
+      color: var(--nts-light-gray);
+    }
+
+    .episode-description {
+      font-size: 12px;
+      color: var(--nts-light-gray);
+      line-height: 1.5;
+      min-height: 42px;
+    }
+
+    .episode-tags {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .episode-tag-chip {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid #333;
+      border-radius: 999px;
+      padding: 4px 8px;
+      font-size: 10px;
+      text-transform: lowercase;
+      color: var(--nts-light-gray);
+    }
+
+    .favorites-section {
+      margin-bottom: 40px;
+    }
+
+    .favorites-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .favorite-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      background: #111;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 16px;
+    }
+
+    .favorite-category {
+      font-size: 10px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--nts-light-gray);
+      margin-bottom: 4px;
+    }
+
+    .favorite-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .favorite-subtitle {
+      font-size: 12px;
+      color: var(--nts-light-gray);
+    }
+
+    .favorite-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .favorite-empty {
+      background: #111;
+      border: 1px dashed #333;
+      border-radius: 8px;
+      padding: 20px;
+      color: var(--nts-light-gray);
+      font-size: 14px;
     }
     
     /* Footer Player */
@@ -475,6 +642,21 @@
 
   <!-- Main Content -->
   <main class="main-content">
+    <section class="recommended-section">
+      <h2 class="section-title">Recommended Episodes</h2>
+      <div class="recommended-grid" id="recommended-episodes"></div>
+    </section>
+
+    <section class="recommended-section">
+      <h2 class="section-title">Search Episodes by Tag</h2>
+      <div class="search-shell">
+        <input id="tag-search-input" type="text" class="tag-search-input" placeholder="Search tags: jazz, dub, house, ambient..." />
+        <button class="control-btn play" onclick="searchEpisodesByTag(document.getElementById('tag-search-input').value)">Search</button>
+      </div>
+      <div class="tag-chips" id="tag-chips"></div>
+      <div class="recommended-grid" id="tag-search-results"></div>
+    </section>
+
     <!-- Live Channels -->
     <section class="live-channels">
       <h2 class="section-title">Live Now</h2>
@@ -492,6 +674,7 @@
           <div class="channel-description" id="nts1-description">Loading show information...</div>
           <div class="channel-controls">
             <button class="control-btn play" onclick="playChannel('nts1')">Play</button>
+            <button class="control-btn secondary" onclick="toggleFavorite('nts1', 'channel')">★ Save</button>
             <button class="control-btn" onclick="showChannelInfo('nts1')">Info</button>
           </div>
         </div>
@@ -509,10 +692,16 @@
           <div class="channel-description" id="nts2-description">Loading show information...</div>
           <div class="channel-controls">
             <button class="control-btn play" onclick="playChannel('nts2')">Play</button>
+            <button class="control-btn secondary" onclick="toggleFavorite('nts2', 'channel')">★ Save</button>
             <button class="control-btn" onclick="showChannelInfo('nts2')">Info</button>
           </div>
         </div>
       </div>
+    </section>
+
+    <section class="favorites-section">
+      <h2 class="section-title">Favorite Feeds</h2>
+      <div class="favorites-list" id="favorites-list"></div>
     </section>
 
     <!-- Infinite Mixtapes Section -->
@@ -523,36 +712,54 @@
           <div class="mixtape-icon">🎧</div>
           <h3>Slow Focus</h3>
           <p>Ambient, experimental, drone</p>
+          <div class="channel-controls" style="margin-top:12px; justify-content:flex-start;">
+            <button class="control-btn secondary" onclick="event.stopPropagation(); toggleFavorite('slowFocus', 'mixtape')">★ Save</button>
+          </div>
         </div>
         
         <div class="mixtape-card" onclick="playMixtape('fieldRecordings')">
           <div class="mixtape-icon">🌿</div>
           <h3>Field Recordings</h3>
           <p>Natural sounds, environmental audio</p>
+          <div class="channel-controls" style="margin-top:12px; justify-content:flex-start;">
+            <button class="control-btn secondary" onclick="event.stopPropagation(); toggleFavorite('fieldRecordings', 'mixtape')">★ Save</button>
+          </div>
         </div>
         
         <div class="mixtape-card" onclick="playMixtape('fourToTheFloor')">
           <div class="mixtape-icon">🕺</div>
           <h3>4 to the Floor</h3>
           <p>House, techno, electronic dance</p>
+          <div class="channel-controls" style="margin-top:12px; justify-content:flex-start;">
+            <button class="control-btn secondary" onclick="event.stopPropagation(); toggleFavorite('fourToTheFloor', 'mixtape')">★ Save</button>
+          </div>
         </div>
         
         <div class="mixtape-card" onclick="playMixtape('poolside')">
           <div class="mixtape-icon">🏊</div>
           <h3>Poolside</h3>
           <p>Balearic, boogie, sophisti-pop</p>
+          <div class="channel-controls" style="margin-top:12px; justify-content:flex-start;">
+            <button class="control-btn secondary" onclick="event.stopPropagation(); toggleFavorite('poolside', 'mixtape')">★ Save</button>
+          </div>
         </div>
         
         <div class="mixtape-card" onclick="playMixtape('lowkey')">
           <div class="mixtape-icon">😌</div>
           <h3>Low Key</h3>
           <p>Lo-fi hip-hop, smooth R&B</p>
+          <div class="channel-controls" style="margin-top:12px; justify-content:flex-start;">
+            <button class="control-btn secondary" onclick="event.stopPropagation(); toggleFavorite('lowkey', 'mixtape')">★ Save</button>
+          </div>
         </div>
         
         <div class="mixtape-card" onclick="playMixtape('houseTechno')">
           <div class="mixtape-icon">⚡</div>
           <h3>House & Techno</h3>
           <p>Electronic dance music</p>
+          <div class="channel-controls" style="margin-top:12px; justify-content:flex-start;">
+            <button class="control-btn secondary" onclick="event.stopPropagation(); toggleFavorite('houseTechno', 'mixtape')">★ Save</button>
+          </div>
         </div>
       </div>
     </section>
@@ -568,6 +775,7 @@
       <div class="next-update" id="next-update">
         Next update: --:--:--
       </div>
+      <button class="control-btn secondary" onclick="saveCurrentShowToFavorites()">★ Save current show</button>
     </div>
   </main>
 
